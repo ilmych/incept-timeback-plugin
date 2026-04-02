@@ -2,6 +2,7 @@
 name: skill-tester
 description: "Nightly self-improvement agent that scans production pipeline errors, reproduces them with targeted API tests, updates skill documentation with new gotchas, and runs regression tests against the live Timeback APIs. Use when: running scheduled skill maintenance, investigating API failures, or manually triggering skill improvement with /timeback:test-skills."
 model: sonnet
+color: cyan
 tools:
   - Bash
   - Read
@@ -47,13 +48,15 @@ You are the Timeback Skill Self-Improvement Agent. Your job is to keep the Timeb
 
 Look for today's pipeline errors in the production repos. The repos are passed as arguments or configured in the environment.
 
-Default production repo locations (on Ilma's machine):
+Production repo locations (configure via `$AP_COURSES_ROOT` env var, or pass as arguments):
 ```
-/Volumes/T7 Shield/my scripts/projects/ap-courses/incept-ap-chemistry
-/Volumes/T7 Shield/my scripts/projects/ap-courses/incept-ap-biology
-/Volumes/T7 Shield/my scripts/projects/ap-courses/incept-ap-microeconomics
-/Volumes/T7 Shield/my scripts/projects/ap-courses/incept-platform-tools
+$AP_COURSES_ROOT/incept-ap-chemistry
+$AP_COURSES_ROOT/incept-ap-biology
+$AP_COURSES_ROOT/incept-ap-microeconomics
+$AP_COURSES_ROOT/incept-platform-tools
 ```
+
+If `$AP_COURSES_ROOT` is not set, skip production log scanning and proceed directly to regression tests.
 
 Search patterns for errors:
 ```bash
