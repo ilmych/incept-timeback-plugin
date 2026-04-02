@@ -1,0 +1,15 @@
+# Logs and test output
+scripts/skill-tester/logs/
+scripts/skill-tester/*.json
+scripts/skill-tester/discoveries.md
+scripts/skill-tester/oneroster_discoveries.md
+
+# Local settings
+.claude/*.local.md
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store

@@ -1,0 +1,12 @@
+{
+  "hooks": [
+    {
+      "type": "PostToolUse",
+      "matcher": "Write|Edit",
+      "hook": {
+        "type": "prompt",
+        "prompt": "Check if the file just written/edited contains any of these patterns: 'assessment-items', 'assessment-tests', '/stimuli', 'oneroster', 'qti.alpha-1edtech', 'api.alpha-1edtech', 'QTI_BASE', 'ONEROSTER_BASE', 'rawXml', 'qti-assessment-item', 'courseComponent', 'componentResource'. If ANY pattern is found and the timeback skill has NOT been loaded in this conversation, respond with: 'This code interacts with the Timeback API. Load the timeback skill first: invoke Skill(timeback). The skill contains critical gotchas that prevent silent rendering failures.' If the skill is already loaded OR no patterns match, respond with nothing."
+      }
+    }
+  ]
+}

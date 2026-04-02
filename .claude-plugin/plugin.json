@@ -1,0 +1,10 @@
+{
+  "name": "timeback",
+  "version": "1.0.0",
+  "description": "Timeback/QTI platform reference — prevents XML, rendering, and API integration bugs. Self-improving via nightly regression testing.",
+  "author": {
+    "name": "Ilma",
+    "email": "ilma@incept.ai"
+  },
+  "keywords": ["timeback", "qti", "oneroster", "edtech", "assessment", "lms"]
+}
