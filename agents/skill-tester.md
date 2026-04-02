@@ -48,13 +48,9 @@ You are the Timeback Skill Self-Improvement Agent. Your job is to keep the Timeb
 
 Look for today's pipeline errors in the production repos. The repos are passed as arguments or configured in the environment.
 
-Production repo locations (configure via `$AP_COURSES_ROOT` env var, or pass as arguments):
-```
-$AP_COURSES_ROOT/incept-ap-chemistry
-$AP_COURSES_ROOT/incept-ap-biology
-$AP_COURSES_ROOT/incept-ap-microeconomics
-$AP_COURSES_ROOT/incept-platform-tools
-```
+Production repos are **auto-discovered at runtime** — the nightly script greps all repos under `$AP_COURSES_ROOT` for Timeback API references (`alpha-1edtech`, `qti.alpha`, `assessment-items`, `oneroster`). Any new repo that uses the Timeback API is automatically included.
+
+The repos to scan are passed in the prompt by the nightly script. If no repos are specified, scan all directories under `$AP_COURSES_ROOT` that contain `tools/` or `scripts/` subdirectories.
 
 If `$AP_COURSES_ROOT` is not set, skip production log scanning and proceed directly to regression tests.
 

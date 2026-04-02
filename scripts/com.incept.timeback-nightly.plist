@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.incept.timeback-nightly</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Volumes/T7 Shield/my scripts/projects/ap-courses/timeback-plugin/scripts/nightly-run.sh</string>
+    </array>
+
+    <!-- Run at 2am local time daily -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <string>/tmp/timeback-nightly-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/timeback-nightly-stderr.log</string>
+
+    <!-- Don't restart on failure -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <!-- Run missed jobs when machine wakes up -->
+    <key>StartInterval</key>
+    <integer>86400</integer>
+</dict>
+</plist>
