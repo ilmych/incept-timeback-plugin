@@ -1,11 +1,19 @@
 {
   "hooks": [
     {
-      "type": "PostToolUse",
+      "type": "UserPromptSubmit",
+      "matcher": "",
+      "hook": {
+        "type": "prompt",
+        "prompt": "Scan the user's message for ANY of these patterns (case-insensitive): 'timeback', 'qti', 'oneroster', 'assessment-item', 'assessment-test', 'stimuli', 'stimulus', 'course component', 'courseComponent', 'component-resource', 'rawXml', 'alpha-1edtech', 'qti-assessment', 'match-interaction', 'hotspot', 'hottext', 'inline-choice', 'gap-match', 'graphic-gap', 'select-point', 'PCI', 'portable custom interaction', 'push to CMS', 'push to platform', 'push items', 'push course', 'create items', 'create course', 'lessonType', 'vendorResourceId'. Also check if the current working directory or recent file context contains files referencing these APIs. If ANY match is found, respond with EXACTLY: 'IMPORTANT: This task involves the Timeback/QTI platform. You MUST invoke the timeback skill before writing ANY code: run Skill(timeback). The skill contains critical API gotchas (XML vs JSON format rules, XHTML sanitization, field naming mismatches) that prevent silent rendering failures and data loss. Do NOT skip this step.' If no patterns match, respond with nothing."
+      }
+    },
+    {
+      "type": "PreToolUse",
       "matcher": "Write|Edit",
       "hook": {
         "type": "prompt",
-        "prompt": "Check if the file just written/edited contains any of these patterns: 'assessment-items', 'assessment-tests', '/stimuli', 'oneroster', 'qti.alpha-1edtech', 'api.alpha-1edtech', 'QTI_BASE', 'ONEROSTER_BASE', 'rawXml', 'qti-assessment-item', 'courseComponent', 'componentResource'. If ANY pattern is found and the timeback skill has NOT been loaded in this conversation, respond with: 'This code interacts with the Timeback API. Load the timeback skill first: invoke Skill(timeback). The skill contains critical gotchas that prevent silent rendering failures.' If the skill is already loaded OR no patterns match, respond with nothing."
+        "prompt": "Check if the tool input (file content or edit) contains any of: 'assessment-items', 'assessment-tests', '/stimuli', 'oneroster', 'qti.alpha-1edtech', 'api.alpha-1edtech', 'QTI_BASE', 'ONEROSTER_BASE', 'rawXml', 'qti-assessment-item', 'courseComponent', 'componentResource', 'format.*xml', 'imsqtiasi'. If ANY pattern is found and the timeback skill has NOT been loaded yet in this conversation, respond with: 'BLOCKED: You are writing Timeback API code without loading the timeback skill. Run Skill(timeback) first. This is mandatory — the API has silent data-loss gotchas that are only documented in the skill.' If the skill IS already loaded or no patterns match, respond with nothing."
       }
     }
   ]
