@@ -79,7 +79,9 @@ Before ANY push operation, verify:
 - [ ] All void elements self-closed (`<br/>`, `<img/>`, `<hr/>`)?
 - [ ] Complex interaction types using XML POST (not JSON)?
 - [ ] `correctResponse.value` is array of strings `["A"]`?
-- [ ] FRQ items have ExternalApiScore + rubricBlock + 5 outcome declarations?
+- [ ] **MCQ inline feedback: per-option explanations live in `<qti-feedback-inline>` blocks (NOT embedded in choice text)?** (verified 2026-04-07 — see create-mcq.md)
+- [ ] **FRQ items have all THREE in `rawXml` body**: 5 outcome declarations + `<qti-rubric-block>` inside `<qti-item-body>` + `<qti-custom-operator class="...ExternalApiScore" definition="...">` inside `<qti-response-processing>`? (verified 2026-04-07 — JSON POST silently drops the last two — see create-frq.md)
+- [ ] **FRQ grader URL came from the user (never invented), and survived XML POST allowlist validation?**
 - [ ] PCI: typeIdentifier matches across XML + JS + module ID + S3 filename?
 - [ ] PCI: S3 URL verified accessible?
 - [ ] PCI: `getResponse()` returns plain string, not nested object?

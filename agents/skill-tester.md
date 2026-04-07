@@ -98,9 +98,31 @@ result = client.create_item_json(minimal_payload)
 
 ## Phase 3: Regression Tests
 
-Run a focused subset of tests against known gotchas to verify they still hold:
+Run a focused subset of tests against known gotchas to verify they still hold.
 
-### QTI Regression Suite (quick — ~30 tests)
+### Pre-canned regression suite (run this first)
+
+A runnable Python suite lives at `${CLAUDE_PLUGIN_ROOT}/scripts/skill-tester/regression_tests.py`. Execute it before doing any ad-hoc tests:
+
+```bash
+cd "${CLAUDE_PLUGIN_ROOT}/scripts/skill-tester"
+python3 regression_tests.py
+```
+
+It currently covers (each test creates a real item, asserts the rule, and cleans up):
+
+1. **mcq_inline_feedback_round_trip** — XML POST with 4 `<qti-feedback-inline>` blocks survives GET. Catches: API regressing to drop feedback-inline elements during XML round-trip.
+2. **mcq_explanations_not_in_choice_text** — Choice content contains ONLY option labels (no leaked explanations). Catches: a future skill-tester fix that accidentally inlines explanations into options.
+3. **frq_xml_post_persists_rubric_block** — XML POST with `<qti-rubric-block view="scorer">` elements (with `data-part` attrs) survives round-trip. Catches: rubric-block being silently stripped on XML POST.
+4. **frq_json_post_drops_rubric_and_operator** — Inverse-trap test: JSON POST with `metadata.rubric` + `responseProcessing.customOperator` returns 201 but the rawXml has neither. **If this test starts FAILING, the JSON POST trap was fixed and `create-frq.md` needs updating** (probably remove the "JSON POST trap" warning).
+5. **frq_grader_url_allowlist_enforced** — XML POST with a bogus grader hostname returns 500 with "allowlist" in the message. **If this test starts FAILING, the allowlist validator was removed** and `create-frq.md` "Grader URL Rules" section needs updating.
+
+If any of these fail, prioritize updating the corresponding skill file BEFORE running ad-hoc tests.
+
+### Ad-hoc QTI regression tests (run after the pre-canned suite)
+
+When investigating an error or after API behavior changes, write minimal test cases for these gotchas:
+
 1. Create 1 MCQ via JSON (verify 201)
 2. Create 1 FRQ via JSON (verify 201)
 3. Create 1 match item via XML (verify 201)

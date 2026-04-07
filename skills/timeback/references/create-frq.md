@@ -54,11 +54,19 @@ POST {QTI_BASE}/assessment-items
 - Rubric HTML goes in `metadata.rubric`
 - Neither field is rendered to students by default -- they are for grader/teacher view
 
-## External Grader Setup (CRITICAL for Auto-Grading)
+## External Grader Setup (CRITICAL for Auto-Grading) — verified 2026-04-07
 
-When FRQs need automated scoring, the payload is significantly more complex:
+> **READ THIS FIRST.** FRQs with auto-grading have THREE required components, all of which must be present in the actual `rawXml` body — NOT just in JSON-typed metadata fields. Getting any of these wrong leaves the item silently broken: it will accept POSTs (200/201) but never grade student responses.
+>
+> 1. Five outcome declarations (SCORE, FEEDBACK, API_RESPONSE, GRADING_RESPONSE, FEEDBACK_VISIBILITY)
+> 2. **One or more `<qti-rubric-block>` elements INSIDE `<qti-item-body>`** — NOT just in `metadata.rubric`
+> 3. **A `<qti-custom-operator class="com.alpha-1edtech.ExternalApiScore" definition="...URL...">` INSIDE `<qti-response-processing>`** — NOT just in `responseProcessing.customOperator` JSON field
+>
+> **You MUST POST FRQs with auto-grading as XML.** JSON POST silently drops both the rubric-block and the custom-operator from the rawXml body. See "JSON POST trap" below.
 
 ### Required Outcome Declarations (5 total)
+
+All five MUST be present. Missing any one breaks grading or feedback display.
 
 ```python
 "outcomeDeclarations": [
@@ -70,31 +78,92 @@ When FRQs need automated scoring, the payload is significantly more complex:
 ]
 ```
 
-### Response Processing with External Grader
-
-```python
-"responseProcessing": {
-    "templateType": "custom",
-    "customOperator": {
-        "class": "com.alpha-1edtech.ExternalApiScore",
-        "definition": "https://grader.example.com/grade"
-    }
-}
+In XML:
+```xml
+<qti-outcome-declaration identifier="SCORE" base-type="float" cardinality="single"/>
+<qti-outcome-declaration identifier="FEEDBACK" base-type="identifier" cardinality="single"/>
+<qti-outcome-declaration identifier="API_RESPONSE" base-type="string" cardinality="single"/>
+<qti-outcome-declaration identifier="GRADING_RESPONSE" base-type="string" cardinality="single"/>
+<qti-outcome-declaration identifier="FEEDBACK_VISIBILITY" base-type="boolean" cardinality="single"/>
 ```
 
-### Rubric Block for Grader
+### qti-rubric-block — NEVER OMIT
 
-```python
-"rubricBlock": {
-    "view": "scorer",
-    "content": '<div data-part="a">Criterion A: ...</div><div data-part="b">Criterion B: ...</div>'
-}
+The rubric block lives **inside `<qti-item-body>`**. This is what the grader actually consumes. One `<qti-rubric-block>` per scoring criterion is the standard pattern.
+
+```xml
+<qti-item-body>
+  <qti-extended-text-interaction response-identifier="RESPONSE">
+    <qti-prompt><p>Write a Java method that returns the sum of two ints.</p></qti-prompt>
+  </qti-extended-text-interaction>
+
+  <qti-rubric-block view="scorer">
+    <div data-part="a">Method signature is public, returns int, takes two int parameters.</div>
+  </qti-rubric-block>
+  <qti-rubric-block view="scorer">
+    <div data-part="b">Body returns the sum of the two parameters.</div>
+  </qti-rubric-block>
+</qti-item-body>
 ```
 
-### Grader URL Rules
-- `grader_url` must start with `http://` or `https://`
-- The grader receives the student response + rubric and returns a score + feedback
-- If grader URL is missing or malformed, the item silently fails to grade
+Rules:
+- `view="scorer"` keeps the rubric hidden from students; the grader still receives it
+- One `<qti-rubric-block>` per criterion is preferred (easier for the grader to enumerate parts) but a single block with multiple `<div data-part="...">` children also works
+- The `data-part` attribute identifies which part of a multi-part question the criterion applies to (free-form string — `a`, `b`, `c` is the convention)
+- `metadata.rubric` is NOT a substitute. Storing rubric markup there leaves it invisible to the grader. Use it only as a redundant backup, never as the primary location.
+
+### Custom Operator — External Grader Wiring
+
+Lives **inside `<qti-response-processing>`**, wrapped in a `<qti-response-condition>`.
+
+```xml
+<qti-response-processing>
+  <qti-response-condition>
+    <qti-response-if>
+      <qti-custom-operator class="com.alpha-1edtech.ExternalApiScore" definition="{GRADER_URL}">
+        <qti-variable identifier="RESPONSE"/>
+      </qti-custom-operator>
+      <qti-set-outcome-value identifier="SCORE">
+        <qti-base-value base-type="float">1</qti-base-value>
+      </qti-set-outcome-value>
+    </qti-response-if>
+  </qti-response-condition>
+</qti-response-processing>
+```
+
+### Grader URL Rules — CRITICAL (verified 2026-04-07)
+
+- **NEVER invent or guess a grader URL.** ALWAYS get it from the user before creating any FRQ with auto-grading. The URL is course-specific and must be supplied at task time.
+- The XML POST endpoint validates `definition` against an internal **allowlist** (`validateCustomOperatorUrls` in the QTI XML processor). URLs not on the allowlist return:
+  ```
+  500 Internal Server Error
+  Custom operator "com.alpha-1edtech.ExternalApiScore" definition URL hostname is not in the approved grader allowlist: "<hostname>"
+  ```
+- If the user's grader URL fails the allowlist check, **STOP** and ask the user to coordinate with the platform team to add it. Do NOT fall back to JSON POST as a workaround — that's the trap below.
+- The URL must start with `http://` or `https://`
+- Reference URL the user has used previously (allowlist status: pending — verify before use): `https://cs-autograder.onrender.com/cs-autograder/score`
+
+### JSON POST trap — DO NOT use JSON POST for graded FRQs
+
+The JSON `/assessment-items` controller does NOT enforce the grader allowlist, so a JSON POST with a `responseProcessing.customOperator` field returns 201 and looks like it worked. **It did not work.** When you GET the item back:
+
+| Source | Has rubric-block in rawXml? | Has custom-operator in rawXml? |
+|--------|------------------------------|---------------------------------|
+| JSON POST with `metadata.rubric` + `responseProcessing.customOperator` | **NO** | **NO** (rawXml has placeholder `<qti-response-processing template=".../custom.xml"/>`) |
+| XML POST with `<qti-rubric-block>` + `<qti-custom-operator>` in body | YES | YES (URL must be allowlisted) |
+
+The JSON-typed `responseProcessing.customOperator` field is preserved on the GET response, but the **renderer and grader read from `rawXml`** — so a JSON-posted FRQ with custom grading is silently inert: prompt renders, students can submit, but no scoring happens.
+
+The reference item `s4-u1-frq-01` is in this exact broken state: customOperator in JSON field, missing from rawXml, AND missing the rubric-block entirely. Treat it as an example of "how it looks when the rules in this file are violated," not as a working template.
+
+### The Only Path That Works (verified 2026-04-07)
+
+1. Get the grader URL from the user
+2. Build the full QTI XML with: 5 outcome declarations + `<qti-rubric-block>` element(s) inside `<qti-item-body>` + `<qti-custom-operator>` inside `<qti-response-processing>`
+3. Validate the XML with `ET.fromstring()` before posting
+4. POST as `{"format": "xml", "xml": full_xml}` to `/assessment-items`
+5. If 500 with allowlist error → ask user to allowlist the URL with the platform team. Do not retry.
+6. After 201, GET the item back and assert: `"qti-rubric-block" in rawXml` AND `"ExternalApiScore" in rawXml` AND `grader_url in rawXml`. If any assertion fails, the item is broken — investigate, don't ship.
 
 ## Multi-Part FRQs
 
@@ -121,7 +190,10 @@ For showing FRQs without student interaction (review mode):
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Item never gets graded | Missing customOperator or bad grader URL | Add external grader config with valid URL |
-| Score always 0 | Missing rubricBlock with data-part divs | Add rubric block with `view="scorer"` |
+| Item POSTed via JSON, returns 201, never grades | JSON POST drops `<qti-custom-operator>` from rawXml even though `responseProcessing.customOperator` field is preserved | POST as XML with full body. Verify with `"ExternalApiScore" in rawXml` after GET |
+| Item POSTed via JSON, rubric metadata set but grader sees no rubric | `metadata.rubric` is not propagated into `<qti-item-body>` as `<qti-rubric-block>` | POST as XML with `<qti-rubric-block>` inside `<qti-item-body>` |
+| XML POST returns 500 "URL hostname is not in the approved grader allowlist" | Grader hostname not on platform allowlist | Ask user to coordinate with platform team to allowlist the host. Do NOT fall back to JSON POST. |
+| Score always 0 | Missing rubric-block with `data-part` divs | Add rubric block with `view="scorer"` and per-part divs |
 | Grader timeout | Rubric too complex / grader overloaded | Simplify rubric, check grader health |
 | Student sees raw HTML | Prompt XHTML invalid | Sanitize prompt HTML |
 | No feedback after submit | Missing FEEDBACK_VISIBILITY outcome | Add all 5 outcome declarations |
