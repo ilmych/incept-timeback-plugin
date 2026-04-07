@@ -80,8 +80,12 @@ Before ANY push operation, verify:
 - [ ] Complex interaction types using XML POST (not JSON)?
 - [ ] `correctResponse.value` is array of strings `["A"]`?
 - [ ] **MCQ inline feedback: per-option explanations live in `<qti-feedback-inline>` blocks (NOT embedded in choice text)?** (verified 2026-04-07 — see create-mcq.md)
-- [ ] **FRQ items have all THREE in `rawXml` body**: 5 outcome declarations + `<qti-rubric-block>` inside `<qti-item-body>` + `<qti-custom-operator class="...ExternalApiScore" definition="...">` inside `<qti-response-processing>`? (verified 2026-04-07 — JSON POST silently drops the last two — see create-frq.md)
-- [ ] **FRQ grader URL came from the user (never invented), and survived XML POST allowlist validation?**
+- [ ] **FRQ items have ALL FOUR in `rawXml` body** (verified 2026-04-07 against `s4-u1-frq-01` canonical pattern — JSON POST silently drops all four — see create-frq.md):
+  - 6 outcome declarations: `API_RESPONSE` (cardinality=**record**), `FEEDBACK_VISIBILITY` (base-type=**identifier**, NOT boolean), `GENERATED_FEEDBACK` (string), `MAXSCORE` (float), `SCORE` (float), and the `RESPONSE` response-declaration
+  - `<qti-rubric-block use="ext:criteria" view="scorer">` wrapping `<qti-content-body>`, inside `<qti-item-body>`
+  - `<qti-custom-operator class="...ExternalApiScore" definition="...">` inside the multi-step `<qti-response-processing>` pipeline
+  - `<qti-feedback-block outcome-identifier="FEEDBACK_VISIBILITY" identifier="VISIBLE">` containing `<qti-printed-variable identifier="GENERATED_FEEDBACK">` (without this, grader output never reaches the student)
+- [ ] **FRQ grader URL came from the user (never invented), survived XML POST allowlist validation, and contains no `https://https://` double-protocol typo?**
 - [ ] PCI: typeIdentifier matches across XML + JS + module ID + S3 filename?
 - [ ] PCI: S3 URL verified accessible?
 - [ ] PCI: `getResponse()` returns plain string, not nested object?

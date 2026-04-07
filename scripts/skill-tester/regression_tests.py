@@ -157,40 +157,118 @@ def test_mcq_explanations_not_in_choice_text(client: APIClient) -> tuple[bool, s
     return True, "choice text contains only option labels"
 
 
-def test_frq_xml_post_persists_rubric_block(client: APIClient,
-                                             grader_url: str | None) -> tuple[bool, str]:
-    """Verify <qti-rubric-block> in body survives XML POST→GET.
+# Allowlisted grader URL used by s4-u1-frq-01 (verified 2026-04-07).
+# If the platform team rotates the host, update this constant and the
+# allowlist-status table in create-frq.md.
+CANONICAL_GRADER_URL = "https://coreapi.inceptstore.com/api/cs-autograder/score"
 
-    Rule (create-frq.md): rubric MUST live in <qti-rubric-block> inside
-    <qti-item-body>, not just in metadata.rubric.
+
+def _canonical_frq_xml(test_id: str, grader_url: str = CANONICAL_GRADER_URL) -> str:
+    """Return a minimal but FULLY CANONICAL FRQ XML matching s4-u1-frq-01.
+
+    Mirrors the structure documented in create-frq.md so a regression flip
+    points straight at the rule that broke. Keep this in sync with that doc.
     """
-    test_id = client.gen_id("frq-rubric")
-    # Use a minimal item WITHOUT custom-operator so we don't trip the allowlist.
-    # This isolates the rubric-block round-trip from the grader-URL test.
-    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<qti-assessment-item xmlns="http://www.imsglobal.org/xsd/imsqtiasi_v3p0" identifier="{test_id}" title="FRQ Rubric Regression" adaptive="false" time-dependent="false">
-  <qti-response-declaration identifier="RESPONSE" cardinality="single" base-type="string"><qti-correct-response/></qti-response-declaration>
-  <qti-outcome-declaration identifier="SCORE" base-type="float" cardinality="single"/>
-  <qti-outcome-declaration identifier="FEEDBACK" base-type="identifier" cardinality="single"/>
-  <qti-outcome-declaration identifier="API_RESPONSE" base-type="string" cardinality="single"/>
-  <qti-outcome-declaration identifier="GRADING_RESPONSE" base-type="string" cardinality="single"/>
-  <qti-outcome-declaration identifier="FEEDBACK_VISIBILITY" base-type="boolean" cardinality="single"/>
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<qti-assessment-item xmlns="http://www.imsglobal.org/xsd/imsqtiasi_v3p0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.imsglobal.org/xsd/imsqtiasi_v3p0 https://purl.imsglobal.org/spec/qti/v3p0/schema/xsd/imsqti_asiv3p0_v1p0.xsd" identifier="{test_id}" title="FRQ Canonical Regression" adaptive="false" time-dependent="false">
+  <qti-response-declaration identifier="RESPONSE" cardinality="single" base-type="string">
+    <qti-correct-response><qti-value /></qti-correct-response>
+  </qti-response-declaration>
+  <qti-outcome-declaration identifier="API_RESPONSE" cardinality="record" base-type="string">
+    <qti-default-value>
+      <qti-value base-type="string" field-identifier="FEEDBACK" />
+      <qti-value base-type="string" field-identifier="feedback" />
+      <qti-value base-type="float" field-identifier="SCORE">0</qti-value>
+    </qti-default-value>
+  </qti-outcome-declaration>
+  <qti-outcome-declaration identifier="FEEDBACK_VISIBILITY" cardinality="single" base-type="identifier" />
+  <qti-outcome-declaration identifier="GENERATED_FEEDBACK" cardinality="single" base-type="string" />
+  <qti-outcome-declaration identifier="MAXSCORE" cardinality="single" base-type="float">
+    <qti-default-value><qti-value>1</qti-value></qti-default-value>
+  </qti-outcome-declaration>
+  <qti-outcome-declaration identifier="SCORE" cardinality="single" base-type="float" normal-maximum="1">
+    <qti-default-value><qti-value>0</qti-value></qti-default-value>
+  </qti-outcome-declaration>
   <qti-item-body>
     <qti-extended-text-interaction response-identifier="RESPONSE">
       <qti-prompt><p>Write a Java method that returns the sum of two ints.</p></qti-prompt>
     </qti-extended-text-interaction>
-    <qti-rubric-block view="scorer">
-      <div data-part="a">Method signature is public, returns int, takes two int parameters.</div>
-    </qti-rubric-block>
-    <qti-rubric-block view="scorer">
-      <div data-part="b">Body returns the sum of the two parameters.</div>
+    <qti-feedback-block outcome-identifier="FEEDBACK_VISIBILITY" identifier="VISIBLE">
+      <qti-content-body>
+        <div style="white-space: pre-line;">
+          <qti-printed-variable identifier="GENERATED_FEEDBACK" class="qti-html-printed-variable" />
+        </div>
+      </qti-content-body>
+    </qti-feedback-block>
+    <qti-rubric-block use="ext:criteria" view="scorer">
+      <qti-content-body>
+        <h1>Sum Method Rubric (2 points)</h1>
+        <p>1. Method signature is public, returns int, takes two int parameters.</p>
+        <p>2. Body returns the sum of the two parameters.</p>
+      </qti-content-body>
     </qti-rubric-block>
   </qti-item-body>
+  <qti-response-processing>
+    <qti-set-outcome-value identifier="API_RESPONSE">
+      <qti-custom-operator class="com.alpha-1edtech.ExternalApiScore" definition="{grader_url}">
+        <qti-variable identifier="RESPONSE" />
+      </qti-custom-operator>
+    </qti-set-outcome-value>
+    <qti-set-outcome-value identifier="SCORE">
+      <qti-field-value field-identifier="SCORE">
+        <qti-variable identifier="API_RESPONSE" />
+      </qti-field-value>
+    </qti-set-outcome-value>
+    <qti-set-outcome-value identifier="GENERATED_FEEDBACK">
+      <qti-field-value field-identifier="feedback">
+        <qti-variable identifier="API_RESPONSE" />
+      </qti-field-value>
+    </qti-set-outcome-value>
+    <qti-response-condition>
+      <qti-response-if>
+        <qti-is-null><qti-variable identifier="GENERATED_FEEDBACK" /></qti-is-null>
+        <qti-set-outcome-value identifier="GENERATED_FEEDBACK">
+          <qti-field-value field-identifier="FEEDBACK">
+            <qti-variable identifier="API_RESPONSE" />
+          </qti-field-value>
+        </qti-set-outcome-value>
+      </qti-response-if>
+    </qti-response-condition>
+    <qti-set-outcome-value identifier="FEEDBACK_VISIBILITY">
+      <qti-base-value base-type="identifier">VISIBLE</qti-base-value>
+    </qti-set-outcome-value>
+    <qti-response-condition>
+      <qti-response-if>
+        <qti-is-null><qti-variable identifier="RESPONSE" /></qti-is-null>
+        <qti-set-outcome-value identifier="SCORE">
+          <qti-base-value base-type="float">0</qti-base-value>
+        </qti-set-outcome-value>
+        <qti-set-outcome-value identifier="FEEDBACK_VISIBILITY">
+          <qti-base-value base-type="identifier">VISIBLE</qti-base-value>
+        </qti-set-outcome-value>
+      </qti-response-if>
+    </qti-response-condition>
+  </qti-response-processing>
 </qti-assessment-item>"""
+
+
+def test_frq_xml_post_persists_canonical_pattern(client: APIClient,
+                                                  grader_url: str | None = None) -> tuple[bool, str]:
+    """Verify the FULL canonical FRQ XML survives XML POST→GET.
+
+    Rule (create-frq.md): the canonical pattern requires rubric-block (with
+    use=ext:criteria, view=scorer, qti-content-body wrapper), feedback-block
+    + printed-variable, custom-operator, and 6 outcome declarations with the
+    correct cardinalities and base-types — all in rawXml. This test asserts
+    every one of those pieces round-trips through POST→GET.
+    """
+    url = grader_url or CANONICAL_GRADER_URL
+    test_id = client.gen_id("frq-canonical")
+    xml = _canonical_frq_xml(test_id, url)
 
     create = client.create_item_xml(xml)
     if not create.get("success"):
-        return False, f"create failed: status={create.get('status')} err={create.get('error', '')[:300]}"
+        return False, f"create failed: status={create.get('status')} err={create.get('error', '')[:400]}"
 
     time.sleep(0.5)
     got = client.get_item(test_id)
@@ -200,15 +278,28 @@ def test_frq_xml_post_persists_rubric_block(client: APIClient,
         return False, f"get failed: {got}"
 
     raw = got["data"].get("rawXml", "")
-    rubric_count = raw.count("<qti-rubric-block")
-    if rubric_count < 2:
-        return False, f"expected ≥2 <qti-rubric-block> in rawXml, got {rubric_count}"
-    if 'view="scorer"' not in raw:
-        return False, "rubric-block missing view=\"scorer\" attribute after round-trip"
-    if "data-part=\"a\"" not in raw or "data-part=\"b\"" not in raw:
-        return False, "data-part attributes lost after round-trip"
-
-    return True, f"2 rubric-blocks with view=scorer + data-part attrs persisted for {test_id}"
+    checks: list[tuple[str, bool]] = [
+        ("rubric-block",                 "<qti-rubric-block" in raw),
+        ('use="ext:criteria"',           'use="ext:criteria"' in raw),
+        ('view="scorer"',                'view="scorer"' in raw),
+        ("qti-content-body wrapper",     "<qti-content-body" in raw),
+        ("custom-operator",              "<qti-custom-operator" in raw),
+        ("ExternalApiScore class",       "ExternalApiScore" in raw),
+        ("grader URL preserved",         url in raw),
+        ("no double-protocol typo",      "https://https://" not in raw and "http://http://" not in raw),
+        ("feedback-block",               "<qti-feedback-block" in raw),
+        ("printed-variable",             "<qti-printed-variable" in raw),
+        ("GENERATED_FEEDBACK outcome",   'identifier="GENERATED_FEEDBACK"' in raw),
+        ("MAXSCORE outcome",             'identifier="MAXSCORE"' in raw),
+        ("API_RESPONSE record cardinality",
+         'identifier="API_RESPONSE"' in raw and 'cardinality="record"' in raw),
+        ("FEEDBACK_VISIBILITY identifier base-type",
+         'identifier="FEEDBACK_VISIBILITY"' in raw and 'base-type="identifier"' in raw),
+    ]
+    failed = [name for name, ok in checks if not ok]
+    if failed:
+        return False, f"missing from rawXml after round-trip: {failed}"
+    return True, f"all {len(checks)} canonical pieces persisted for {test_id}"
 
 
 def test_frq_json_post_drops_rubric_and_operator(client: APIClient) -> tuple[bool, str]:
@@ -317,8 +408,8 @@ def test_frq_grader_url_allowlist_enforced(client: APIClient) -> tuple[bool, str
 TESTS: list[tuple[str, Callable[[APIClient], tuple[bool, str]]]] = [
     ("mcq_inline_feedback_round_trip", test_mcq_inline_feedback_round_trip),
     ("mcq_explanations_not_in_choice_text", test_mcq_explanations_not_in_choice_text),
-    ("frq_xml_post_persists_rubric_block",
-     lambda c: test_frq_xml_post_persists_rubric_block(c, grader_url=None)),
+    ("frq_xml_post_persists_canonical_pattern",
+     lambda c: test_frq_xml_post_persists_canonical_pattern(c, grader_url=None)),
     ("frq_json_post_drops_rubric_and_operator", test_frq_json_post_drops_rubric_and_operator),
     ("frq_grader_url_allowlist_enforced", test_frq_grader_url_allowlist_enforced),
 ]
