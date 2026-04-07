@@ -111,11 +111,12 @@ python3 regression_tests.py
 
 It currently covers (each test creates a real item, asserts the rule, and cleans up):
 
-1. **mcq_inline_feedback_round_trip** — XML POST with 4 `<qti-feedback-inline>` blocks survives GET. Catches: API regressing to drop feedback-inline elements during XML round-trip.
-2. **mcq_explanations_not_in_choice_text** — Choice content contains ONLY option labels (no leaked explanations). Catches: a future skill-tester fix that accidentally inlines explanations into options.
-3. **frq_xml_post_persists_rubric_block** — XML POST with `<qti-rubric-block view="scorer">` elements (with `data-part` attrs) survives round-trip. Catches: rubric-block being silently stripped on XML POST.
-4. **frq_json_post_drops_rubric_and_operator** — Inverse-trap test: JSON POST with `metadata.rubric` + `responseProcessing.customOperator` returns 201 but the rawXml has neither. **If this test starts FAILING, the JSON POST trap was fixed and `create-frq.md` needs updating** (probably remove the "JSON POST trap" warning).
-5. **frq_grader_url_allowlist_enforced** — XML POST with a bogus grader hostname returns 500 with "allowlist" in the message. **If this test starts FAILING, the allowlist validator was removed** and `create-frq.md` "Grader URL Rules" section needs updating.
+1. **mcq_inline_feedback_canonical_pattern** — XML POST with the full canonical MCQ pattern (4 `<qti-feedback-inline>` elements nested inside their `<qti-simple-choice>`, `<span>` content, `FEEDBACK-INLINE`/`MAXSCORE`/`SCORE` outcomes, `qti-match` scoring) survives round-trip. Verifies all 13 canonical assertions. Catches: API regressing to drop/flatten feedback-inline elements, or anyone reverting the docs to the wrong sibling-placement pattern.
+2. **mcq_feedback_not_sibling_of_choice_interaction** — Specifically asserts no `<qti-feedback-inline>` appears as a sibling of `</qti-choice-interaction>` (the wrong pattern from v1.1/v1.2 of this skill). **If this test starts FAILING, someone reverted to the wrong placement.**
+3. **mcq_explanations_not_in_choice_text** — Extracts `<p class="choice_paragraph">` text from each choice and asserts no explanation phrases leaked in. Catches: a future skill-tester fix that accidentally inlines explanations into options.
+4. **frq_xml_post_persists_canonical_pattern** — XML POST with the full canonical FRQ pattern (rubric-block with `use="ext:criteria"`, qti-content-body wrapper, custom-operator, feedback-block, printed-variable, 6 outcomes with correct cardinalities) survives round-trip. 14 assertions.
+5. **frq_json_post_drops_rubric_and_operator** — Inverse-trap test: JSON POST with `metadata.rubric` + `responseProcessing.customOperator` returns 201 but the rawXml has neither. **If this test starts FAILING, the JSON POST trap was fixed and `create-frq.md` needs updating** (probably remove the "JSON POST trap" warning).
+6. **frq_grader_url_allowlist_enforced** — XML POST with a bogus grader hostname returns 500 with "allowlist" in the message. **If this test starts FAILING, the allowlist validator was removed** and `create-frq.md` "Grader URL Rules" section needs updating.
 
 If any of these fail, prioritize updating the corresponding skill file BEFORE running ad-hoc tests.
 

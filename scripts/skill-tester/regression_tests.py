@@ -44,41 +44,103 @@ from skill_tester.api_client import APIClient  # noqa: E402
 # ---------------------------------------------------------------------------
 
 
-def test_mcq_inline_feedback_round_trip(client: APIClient) -> tuple[bool, str]:
-    """Verify per-option <qti-feedback-inline> blocks survive XML POST→GET.
+def _canonical_mcq_xml(test_id: str) -> str:
+    """Return a minimal but FULLY CANONICAL MCQ XML matching WORH23-qti103821-q1119893-v1.
 
-    Rule (create-mcq.md): per-option explanations MUST live in
-    <qti-feedback-inline> elements keyed by choice identifier, NOT embedded
-    in the choice text.
+    Key structural rules (verified 2026-04-07):
+      - <qti-feedback-inline> is a CHILD of each <qti-simple-choice>, not a sibling
+        of <qti-choice-interaction>
+      - feedback content is in <span> (inline), not <p> (block)
+      - outcome declarations: FEEDBACK-INLINE (with empty default), MAXSCORE, SCORE
+        — NO standalone FEEDBACK outcome
+      - response-processing: set FEEDBACK-INLINE = RESPONSE, then qti-match scoring
     """
-    test_id = client.gen_id("mcq-fb-inline")
-    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<qti-assessment-item xmlns="http://www.imsglobal.org/xsd/imsqtiasi_v3p0" identifier="{test_id}" title="Inline Feedback Regression" adaptive="false" time-dependent="false">
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<qti-assessment-item xmlns="http://www.imsglobal.org/xsd/imsqtiasi_v3p0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" identifier="{test_id}" title="MCQ Canonical Regression" adaptive="false" time-dependent="false" xml:lang="en">
   <qti-response-declaration identifier="RESPONSE" cardinality="single" base-type="identifier">
-    <qti-correct-response><qti-value>A</qti-value></qti-correct-response>
+    <qti-correct-response><qti-value>B</qti-value></qti-correct-response>
   </qti-response-declaration>
-  <qti-outcome-declaration identifier="SCORE" base-type="float" cardinality="single"/>
-  <qti-outcome-declaration identifier="FEEDBACK" base-type="identifier" cardinality="single"/>
-  <qti-outcome-declaration identifier="FEEDBACK-INLINE" base-type="identifier" cardinality="single"/>
+  <qti-outcome-declaration identifier="FEEDBACK-INLINE" base-type="identifier" cardinality="single">
+    <qti-default-value><qti-value/></qti-default-value>
+  </qti-outcome-declaration>
+  <qti-outcome-declaration identifier="MAXSCORE" cardinality="single" base-type="float">
+    <qti-default-value><qti-value>1</qti-value></qti-default-value>
+  </qti-outcome-declaration>
+  <qti-outcome-declaration identifier="SCORE" cardinality="single" base-type="float" normal-maximum="1">
+    <qti-default-value><qti-value>0</qti-value></qti-default-value>
+  </qti-outcome-declaration>
   <qti-item-body>
-    <qti-choice-interaction response-identifier="RESPONSE" max-choices="1" shuffle="false">
-      <qti-prompt><p>Pick A.</p></qti-prompt>
-      <qti-simple-choice identifier="A">Option A</qti-simple-choice>
-      <qti-simple-choice identifier="B">Option B</qti-simple-choice>
-      <qti-simple-choice identifier="C">Option C</qti-simple-choice>
-      <qti-simple-choice identifier="D">Option D</qti-simple-choice>
+    <qti-choice-interaction response-identifier="RESPONSE" shuffle="true" max-choices="1" min-choices="1">
+      <qti-prompt>
+        <p class="stem_paragraph">Which option is correct?</p>
+      </qti-prompt>
+      <qti-simple-choice identifier="A">
+        <p class="choice_paragraph">Option A text</p>
+        <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="A" show-hide="show">
+          <span>This answer is incorrect. Reason A.</span>
+        </qti-feedback-inline>
+      </qti-simple-choice>
+      <qti-simple-choice identifier="B">
+        <p class="choice_paragraph">Option B text</p>
+        <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="B" show-hide="show">
+          <span>This answer is correct. Reason B.</span>
+        </qti-feedback-inline>
+      </qti-simple-choice>
+      <qti-simple-choice identifier="C">
+        <p class="choice_paragraph">Option C text</p>
+        <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="C" show-hide="show">
+          <span>This answer is incorrect. Reason C.</span>
+        </qti-feedback-inline>
+      </qti-simple-choice>
+      <qti-simple-choice identifier="D">
+        <p class="choice_paragraph">Option D text</p>
+        <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="D" show-hide="show">
+          <span>This answer is incorrect. Reason D.</span>
+        </qti-feedback-inline>
+      </qti-simple-choice>
     </qti-choice-interaction>
-    <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="A" show-hide="show"><p>Correct.</p></qti-feedback-inline>
-    <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="B" show-hide="show"><p>Wrong B.</p></qti-feedback-inline>
-    <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="C" show-hide="show"><p>Wrong C.</p></qti-feedback-inline>
-    <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="D" show-hide="show"><p>Wrong D.</p></qti-feedback-inline>
   </qti-item-body>
-  <qti-response-processing template="https://purl.imsglobal.org/spec/qti/v3p0/rptemplates/match_correct.xml"/>
+  <qti-response-processing>
+    <qti-set-outcome-value identifier="FEEDBACK-INLINE">
+      <qti-variable identifier="RESPONSE"/>
+    </qti-set-outcome-value>
+    <qti-response-condition>
+      <qti-response-if>
+        <qti-match>
+          <qti-variable identifier="RESPONSE"/>
+          <qti-correct identifier="RESPONSE"/>
+        </qti-match>
+        <qti-set-outcome-value identifier="SCORE">
+          <qti-base-value base-type="float">1</qti-base-value>
+        </qti-set-outcome-value>
+      </qti-response-if>
+      <qti-response-else>
+        <qti-set-outcome-value identifier="SCORE">
+          <qti-base-value base-type="float">0</qti-base-value>
+        </qti-set-outcome-value>
+      </qti-response-else>
+    </qti-response-condition>
+  </qti-response-processing>
 </qti-assessment-item>"""
+
+
+def test_mcq_inline_feedback_canonical_pattern(client: APIClient) -> tuple[bool, str]:
+    """Verify the canonical MCQ pattern (feedback-inline nested in simple-choice)
+    survives XML POST→GET.
+
+    Rule (create-mcq.md, verified 2026-04-07): per-option <qti-feedback-inline>
+    elements MUST be children of their <qti-simple-choice>, not siblings of
+    <qti-choice-interaction>. Feedback content must use <span> not <p>.
+    Outcome declarations must be FEEDBACK-INLINE/MAXSCORE/SCORE — not FEEDBACK.
+    """
+    import re
+
+    test_id = client.gen_id("mcq-canonical")
+    xml = _canonical_mcq_xml(test_id)
 
     create = client.create_item_xml(xml)
     if not create.get("success"):
-        return False, f"create failed: status={create.get('status')} err={create.get('error', '')[:200]}"
+        return False, f"create failed: status={create.get('status')} err={create.get('error', '')[:300]}"
 
     time.sleep(0.5)
     got = client.get_item(test_id)
@@ -88,52 +150,50 @@ def test_mcq_inline_feedback_round_trip(client: APIClient) -> tuple[bool, str]:
         return False, f"get failed: {got}"
 
     raw = got["data"].get("rawXml", "")
-    expected_count = 4
-    actual_count = raw.count("qti-feedback-inline")
-    # qti-feedback-inline appears twice per element (open + close tag)
-    open_count = raw.count("<qti-feedback-inline ")
-    if open_count != expected_count:
-        return False, f"expected {expected_count} <qti-feedback-inline> elements in rawXml, got {open_count}"
 
-    # Each choice identifier should appear in a feedback-inline block
+    # Structural check: every qti-simple-choice block must contain a qti-feedback-inline
+    choice_blocks = re.findall(
+        r"<qti-simple-choice[^>]*>(.*?)</qti-simple-choice>", raw, re.DOTALL
+    )
+    nested_count = sum(1 for b in choice_blocks if "<qti-feedback-inline" in b)
+
+    checks: list[tuple[str, bool]] = [
+        ("4 simple-choice blocks",           len(choice_blocks) == 4),
+        ("4 feedback-inline NESTED inside simple-choice",  nested_count == 4),
+        ("feedback-inline open count == 4",  raw.count("<qti-feedback-inline ") == 4),
+        ("FEEDBACK-INLINE outcome decl",     'identifier="FEEDBACK-INLINE"' in raw),
+        ("MAXSCORE outcome decl",            'identifier="MAXSCORE"' in raw),
+        ("NO standalone FEEDBACK outcome",
+         'identifier="FEEDBACK"' not in raw.replace('identifier="FEEDBACK-INLINE"', "")),
+        ("set-outcome FEEDBACK-INLINE from RESPONSE",
+         "qti-set-outcome-value" in raw and "FEEDBACK-INLINE" in raw and "qti-variable" in raw),
+        ("qti-match used for scoring",       "qti-match" in raw),
+        ("no <p> inside feedback-inline (uses <span>)",
+         "<p>" not in "".join(
+             re.findall(r"<qti-feedback-inline[^>]*>(.*?)</qti-feedback-inline>",
+                        raw, re.DOTALL)
+         )),
+    ]
     for choice in ("A", "B", "C", "D"):
-        marker = f'identifier="{choice}"'
-        # find feedback-inline opening tag with this identifier
-        if f'<qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="{choice}"' not in raw:
-            return False, f"feedback-inline for choice {choice} missing from rawXml"
+        checks.append(
+            (f"feedback-inline identifier={choice} present",
+             f'<qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="{choice}"' in raw)
+        )
 
-    return True, f"4 feedback-inline blocks present in rawXml for {test_id}"
+    failed = [name for name, ok in checks if not ok]
+    if failed:
+        return False, f"failures: {failed}"
+    return True, f"all {len(checks)} canonical MCQ assertions passed for {test_id}"
 
 
-def test_mcq_explanations_not_in_choice_text(client: APIClient) -> tuple[bool, str]:
-    """Negative-pattern check: confirm choice content does NOT bleed explanations.
-
-    Rule (create-mcq.md): choice content must contain ONLY the option text.
+def test_mcq_feedback_not_sibling_of_choice_interaction(client: APIClient) -> tuple[bool, str]:
+    """Verify that the rawXml has NO <qti-feedback-inline> as a direct sibling
+    of <qti-choice-interaction> (the wrong pattern from v1.1/v1.2 of this skill).
     """
-    test_id = client.gen_id("mcq-clean-choices")
-    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<qti-assessment-item xmlns="http://www.imsglobal.org/xsd/imsqtiasi_v3p0" identifier="{test_id}" title="Clean choices" adaptive="false" time-dependent="false">
-  <qti-response-declaration identifier="RESPONSE" cardinality="single" base-type="identifier">
-    <qti-correct-response><qti-value>A</qti-value></qti-correct-response>
-  </qti-response-declaration>
-  <qti-outcome-declaration identifier="SCORE" base-type="float" cardinality="single"/>
-  <qti-outcome-declaration identifier="FEEDBACK" base-type="identifier" cardinality="single"/>
-  <qti-outcome-declaration identifier="FEEDBACK-INLINE" base-type="identifier" cardinality="single"/>
-  <qti-item-body>
-    <qti-choice-interaction response-identifier="RESPONSE" max-choices="1" shuffle="false">
-      <qti-prompt><p>Q?</p></qti-prompt>
-      <qti-simple-choice identifier="A">Dog</qti-simple-choice>
-      <qti-simple-choice identifier="B">Lizard</qti-simple-choice>
-      <qti-simple-choice identifier="C">Trout</qti-simple-choice>
-      <qti-simple-choice identifier="D">Eagle</qti-simple-choice>
-    </qti-choice-interaction>
-    <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="A" show-hide="show"><p>Dogs are mammals.</p></qti-feedback-inline>
-    <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="B" show-hide="show"><p>Lizards are reptiles.</p></qti-feedback-inline>
-    <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="C" show-hide="show"><p>Trout are fish.</p></qti-feedback-inline>
-    <qti-feedback-inline outcome-identifier="FEEDBACK-INLINE" identifier="D" show-hide="show"><p>Eagles are birds.</p></qti-feedback-inline>
-  </qti-item-body>
-  <qti-response-processing template="https://purl.imsglobal.org/spec/qti/v3p0/rptemplates/match_correct.xml"/>
-</qti-assessment-item>"""
+    import re
+
+    test_id = client.gen_id("mcq-no-sibling-fb")
+    xml = _canonical_mcq_xml(test_id)
 
     create = client.create_item_xml(xml)
     if not create.get("success"):
@@ -147,14 +207,59 @@ def test_mcq_explanations_not_in_choice_text(client: APIClient) -> tuple[bool, s
         return False, f"get failed: {got}"
 
     raw = got["data"].get("rawXml", "")
-    # Confirm none of the explanation phrases leaked into qti-simple-choice tags
-    leaked_phrases = ["mammals.</qti-simple-choice>", "reptiles.</qti-simple-choice>",
-                      "fish.</qti-simple-choice>", "birds.</qti-simple-choice>"]
-    for phrase in leaked_phrases:
-        if phrase in raw:
-            return False, f"explanation leaked into qti-simple-choice: {phrase}"
 
-    return True, "choice text contains only option labels"
+    # Look for the wrong pattern: </qti-choice-interaction> followed by
+    # (whitespace + <qti-feedback-inline>) before </qti-item-body>
+    wrong_pattern = re.search(
+        r"</qti-choice-interaction>\s*<qti-feedback-inline",
+        raw,
+    )
+    if wrong_pattern:
+        return False, "WRONG PATTERN: found <qti-feedback-inline> as sibling of </qti-choice-interaction>"
+
+    return True, "no sibling-placed feedback-inline (all are correctly nested in simple-choice)"
+
+
+def test_mcq_explanations_not_in_choice_text(client: APIClient) -> tuple[bool, str]:
+    """Negative-pattern check: confirm the explanation span content does NOT
+    leak into <p class="choice_paragraph"> choice text.
+
+    Rule (create-mcq.md): choice text must contain ONLY the option label.
+    The explanation lives in the nested <qti-feedback-inline><span>.
+    """
+    import re
+
+    test_id = client.gen_id("mcq-clean-choices")
+    xml = _canonical_mcq_xml(test_id)
+
+    create = client.create_item_xml(xml)
+    if not create.get("success"):
+        return False, f"create failed: {create}"
+
+    time.sleep(0.3)
+    got = client.get_item(test_id)
+    client.delete_item(test_id)
+
+    if not got.get("success"):
+        return False, f"get failed: {got}"
+
+    raw = got["data"].get("rawXml", "")
+
+    # Extract <p class="choice_paragraph"> text inside each simple-choice and confirm
+    # no "This answer is" or "Reason" phrases (which belong in feedback-inline, not choice text).
+    choice_paragraphs = re.findall(
+        r'<p class="choice_paragraph">([^<]*)</p>', raw
+    )
+    if len(choice_paragraphs) < 4:
+        return False, f"expected 4 choice paragraphs, found {len(choice_paragraphs)}"
+
+    leaked_phrases = ["This answer is", "Reason A", "Reason B", "Reason C", "Reason D", "correct because", "incorrect because"]
+    for cp in choice_paragraphs:
+        for phrase in leaked_phrases:
+            if phrase in cp:
+                return False, f"explanation leaked into choice text: {cp!r} contains {phrase!r}"
+
+    return True, "choice text contains only option labels; explanations confined to feedback-inline"
 
 
 # Allowlisted grader URL used by s4-u1-frq-01 (verified 2026-04-07).
@@ -406,7 +511,8 @@ def test_frq_grader_url_allowlist_enforced(client: APIClient) -> tuple[bool, str
 # ---------------------------------------------------------------------------
 
 TESTS: list[tuple[str, Callable[[APIClient], tuple[bool, str]]]] = [
-    ("mcq_inline_feedback_round_trip", test_mcq_inline_feedback_round_trip),
+    ("mcq_inline_feedback_canonical_pattern", test_mcq_inline_feedback_canonical_pattern),
+    ("mcq_feedback_not_sibling_of_choice_interaction", test_mcq_feedback_not_sibling_of_choice_interaction),
     ("mcq_explanations_not_in_choice_text", test_mcq_explanations_not_in_choice_text),
     ("frq_xml_post_persists_canonical_pattern",
      lambda c: test_frq_xml_post_persists_canonical_pattern(c, grader_url=None)),

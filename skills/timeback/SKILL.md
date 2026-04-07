@@ -79,7 +79,7 @@ Before ANY push operation, verify:
 - [ ] All void elements self-closed (`<br/>`, `<img/>`, `<hr/>`)?
 - [ ] Complex interaction types using XML POST (not JSON)?
 - [ ] `correctResponse.value` is array of strings `["A"]`?
-- [ ] **MCQ inline feedback: per-option explanations live in `<qti-feedback-inline>` blocks (NOT embedded in choice text)?** (verified 2026-04-07 — see create-mcq.md)
+- [ ] **MCQ inline feedback: each `<qti-feedback-inline>` is a CHILD of its `<qti-simple-choice>` (not a sibling of `qti-choice-interaction`), contains `<span>` not `<p>`, and outcome decls are `FEEDBACK-INLINE` / `MAXSCORE` / `SCORE` (NOT `FEEDBACK`)?** (verified 2026-04-07 against WORH23-qti103821-q1119893-v1 — see create-mcq.md)
 - [ ] **FRQ items have ALL FOUR in `rawXml` body** (verified 2026-04-07 against `s4-u1-frq-01` canonical pattern — JSON POST silently drops all four — see create-frq.md):
   - 6 outcome declarations: `API_RESPONSE` (cardinality=**record**), `FEEDBACK_VISIBILITY` (base-type=**identifier**, NOT boolean), `GENERATED_FEEDBACK` (string), `MAXSCORE` (float), `SCORE` (float), and the `RESPONSE` response-declaration
   - `<qti-rubric-block use="ext:criteria" view="scorer">` wrapping `<qti-content-body>`, inside `<qti-item-body>`
