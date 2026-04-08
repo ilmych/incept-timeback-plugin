@@ -80,12 +80,13 @@ Before ANY push operation, verify:
 - [ ] Complex interaction types using XML POST (not JSON)?
 - [ ] `correctResponse.value` is array of strings `["A"]`?
 - [ ] **MCQ inline feedback: each `<qti-feedback-inline>` is a CHILD of its `<qti-simple-choice>` (not a sibling of `qti-choice-interaction`), contains `<span>` not `<p>`, and outcome decls are `FEEDBACK-INLINE` / `MAXSCORE` / `SCORE` (NOT `FEEDBACK`)?** (verified 2026-04-07 against WORH23-qti103821-q1119893-v1 — see create-mcq.md)
-- [ ] **FRQ items have ALL FOUR in `rawXml` body** (verified 2026-04-07 against `s4-u1-frq-01` canonical pattern — JSON POST silently drops all four — see create-frq.md):
-  - 6 outcome declarations: `API_RESPONSE` (cardinality=**record**), `FEEDBACK_VISIBILITY` (base-type=**identifier**, NOT boolean), `GENERATED_FEEDBACK` (string), `MAXSCORE` (float), `SCORE` (float), and the `RESPONSE` response-declaration
-  - `<qti-rubric-block use="ext:criteria" view="scorer">` wrapping `<qti-content-body>`, inside `<qti-item-body>`
-  - `<qti-custom-operator class="...ExternalApiScore" definition="...">` inside the multi-step `<qti-response-processing>` pipeline
+- [ ] **FRQ items have ALL FOUR in `rawXml` body** (verified 2026-04-08 against `qti-item-4d365abb-7916-41a9-85d4-08ed7d3dd718` canonical pattern — JSON POST silently drops all four — see create-frq.md):
+  - 5 outcome declarations + 1 response-decl: `API_RESPONSE` (cardinality=**record**, base-type=**string** for POST validator), `FEEDBACK_VISIBILITY` (base-type=**identifier**, NOT boolean), `GENERATED_FEEDBACK` (string), `SCORE` (float, with **BOTH** `normal-minimum="0"` AND `normal-maximum="1.0"`), vestigial `FEEDBACK` (string, empty default — required even though nothing reads/writes it), and the `RESPONSE` response-declaration. **No `MAXSCORE`** — removed from the canonical pattern.
+  - **One `<qti-rubric-block use="ext:criteria" view="scorer">` PER criterion** (NOT one mega-block), each with plain text inside `<qti-content-body>`, all placed at the top of `<qti-item-body>` BEFORE the interaction
+  - `<qti-extended-text-interaction>` with **`expected-lines`** and **`required="true"`** attributes
+  - **Self-closing `<qti-custom-operator class="...ExternalApiScore" definition="..." />`** (no `<qti-variable>` child — the grader implicitly reads `RESPONSE`) inside a 5-step `<qti-response-processing>` pipeline with a single lowercase/uppercase FEEDBACK fallback condition (NO defensive null-RESPONSE branch)
   - `<qti-feedback-block outcome-identifier="FEEDBACK_VISIBILITY" identifier="VISIBLE">` containing `<qti-printed-variable identifier="GENERATED_FEEDBACK">` (without this, grader output never reaches the student)
-- [ ] **FRQ grader URL came from the user (never invented), survived XML POST allowlist validation, and contains no `https://https://` double-protocol typo?**
+- [ ] **FRQ grader URL came from the user (never invented), uses the post-2026-04-08 path `https://coreapi.inceptstore.com/cs-autograder/score` (NO `/api/` prefix), survived XML POST allowlist validation, and contains no `https://https://` double-protocol typo?**
 - [ ] PCI: typeIdentifier matches across XML + JS + module ID + S3 filename?
 - [ ] PCI: S3 URL verified accessible?
 - [ ] PCI: `getResponse()` returns plain string, not nested object?
