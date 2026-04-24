@@ -116,6 +116,13 @@ Load the appropriate reference when performing a specific operation:
 | Math/Formulas | [references/math-and-formulas.md](references/math-and-formulas.md) | MathML, chemical formulas, Unicode subscripts |
 | Interaction Types | [references/interaction-types.md](references/interaction-types.md) | Checking what QTI types work on Timeback |
 | Error Diagnosis | [references/common-errors.md](references/common-errors.md) | Debugging rendering or push failures |
+| Auth (Cognito OAuth2) | [references/auth-cognito.md](references/auth-cognito.md) | Token exchange, caching, retry/backoff for ANY read-side call |
+| Read OneRoster | [references/read-oneroster.md](references/read-oneroster.md) | Pulling academic sessions, enrollments, assessmentResults, lineItems |
+| Read EduBridge | [references/read-edubridge.md](references/read-edubridge.md) | Pulling weekly facts, daily activity, highestGradeMastered |
+| Read PowerPath | [references/read-powerpath.md](references/read-powerpath.md) | Pulling placement, per-course subject progress |
+| Read QTI | [references/read-qti.md](references/read-qti.md) | Extracting test metadata + questions (prompt/choices/answers/standards) |
+
+See also `scripts/read-examples/pull_student_weekly.py` for a working end-to-end read pattern combining all four read-side APIs.
 
 ## API Quick Reference
 
