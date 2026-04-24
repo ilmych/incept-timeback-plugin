@@ -13,8 +13,8 @@ READ-ONLY. Only HTTP GET calls (plus one POST to /oauth2/token for auth).
 No data is created, updated, or deleted in Timeback.
 
 Usage:
-    export ALPHA_CLIENT_ID="..."
-    export ALPHA_CLIENT_SECRET="..."
+    export TIMEBACK_CLIENT_ID="..."
+    export TIMEBACK_CLIENT_SECRET="..."
     python3 pull_student_weekly.py <student_sourced_id> <week_sunday_iso>
 
 Example:
@@ -31,13 +31,13 @@ import time
 import httpx
 
 # ── Config ─────────────────────────────────────────────────────────────────
-BASE_URL = os.environ.get("ALPHA_BASE_URL", "https://api.alpha-1edtech.ai")
+BASE_URL = os.environ.get("TIMEBACK_BASE_URL", "https://api.alpha-1edtech.ai")
 TOKEN_URL = os.environ.get(
     "TIMEBACK_TOKEN_URL",
     "https://prod-beyond-timeback-api-2-idp.auth.us-east-1.amazoncognito.com/oauth2/token",
 )
-CLIENT_ID = os.environ["ALPHA_CLIENT_ID"]
-CLIENT_SECRET = os.environ["ALPHA_CLIENT_SECRET"]
+CLIENT_ID = os.environ["TIMEBACK_CLIENT_ID"]
+CLIENT_SECRET = os.environ["TIMEBACK_CLIENT_SECRET"]
 
 SUBJECTS = ["math", "reading", "language", "science", "writing", "vocabulary"]
 RETRY_CODES = {429, 500, 502, 503, 504}

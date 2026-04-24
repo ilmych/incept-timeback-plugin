@@ -19,10 +19,10 @@ Override via `TIMEBACK_TOKEN_URL` env var if a different environment is provisio
 You receive a client ID + secret out-of-band from the Timeback team. They go in env vars — never in code, never in the repo.
 
 ```bash
-export ALPHA_CLIENT_ID="..."
-export ALPHA_CLIENT_SECRET="..."
-export ALPHA_BASE_URL="https://api.alpha-1edtech.ai"       # OneRoster / EduBridge / PowerPath
-export TIMEBACK_QTI_BASE="https://qti.alpha-1edtech.ai"    # QTI
+export TIMEBACK_CLIENT_ID="..."
+export TIMEBACK_CLIENT_SECRET="..."
+export TIMEBACK_BASE_URL="https://api.alpha-1edtech.ai"    # OneRoster / EduBridge / PowerPath (optional override)
+export TIMEBACK_QTI_BASE="https://qti.alpha-1edtech.ai"    # QTI (optional override)
 ```
 
 ## Token Exchange (Python)
@@ -37,8 +37,8 @@ def get_token() -> str:
         headers={"Content-Type": "application/x-www-form-urlencoded"},
         data={
             "grant_type": "client_credentials",
-            "client_id": os.environ["ALPHA_CLIENT_ID"],
-            "client_secret": os.environ["ALPHA_CLIENT_SECRET"],
+            "client_id": os.environ["TIMEBACK_CLIENT_ID"],
+            "client_secret": os.environ["TIMEBACK_CLIENT_SECRET"],
         },
         timeout=30,
     )
@@ -82,11 +82,12 @@ class TokenCache:
             if self.token and time.time() < self.expires_at - 60:
                 return self.token
             r = await client.post(
-                os.environ["TIMEBACK_TOKEN_URL"],
+                os.environ.get("TIMEBACK_TOKEN_URL",
+                    "https://prod-beyond-timeback-api-2-idp.auth.us-east-1.amazoncognito.com/oauth2/token"),
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 data={"grant_type": "client_credentials",
-                      "client_id": os.environ["ALPHA_CLIENT_ID"],
-                      "client_secret": os.environ["ALPHA_CLIENT_SECRET"]},
+                      "client_id": os.environ["TIMEBACK_CLIENT_ID"],
+                      "client_secret": os.environ["TIMEBACK_CLIENT_SECRET"]},
                 timeout=30,
             )
             r.raise_for_status()
@@ -136,6 +137,6 @@ async def get_with_retry(client, cache, url, params=None, timeout=30):
 |---|---|---|
 | 401 on every call | Stale token cached beyond `expires_in` | Add the 60s expiry buffer shown above |
 | 403 on creation endpoints, 200 on reads | Client has read-only scope | Request write scope from Timeback team; not a code bug |
-| `invalid_client` from token endpoint | Whitespace in `ALPHA_CLIENT_SECRET` env var | Strip the env var; no leading/trailing spaces |
+| `invalid_client` from token endpoint | Whitespace in `TIMEBACK_CLIENT_SECRET` env var | Strip the env var; no leading/trailing spaces |
 | 429 storms during bulk pull | No semaphore, hundreds of parallel calls | Wrap calls in `asyncio.Semaphore(10)` — that's the observed safe ceiling |
 | Token works for `api.alpha-1edtech.ai` but fails on `qti.alpha-1edtech.ai` | None — the same token works on both (verified 2026-04-23) | Check for a typo or stale copy of the token |
