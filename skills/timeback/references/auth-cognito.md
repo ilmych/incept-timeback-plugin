@@ -69,7 +69,7 @@ Authorization: Bearer <access_token>
 A fresh token costs ~200ms. For a 40-student × 7-subject × 40-week pull that's 11,200 calls — do NOT fetch a new token per call. Cache and reuse until 60s before `expires_in`.
 
 ```python
-import asyncio, time, httpx
+import asyncio, os, time, httpx
 
 class TokenCache:
     def __init__(self):
@@ -106,18 +106,27 @@ Transient 5xx and 429 are common under load. Same pattern as the QTI skill:
 - Retry on: `{429, 500, 502, 503, 504}`
 - Backoff: `[5, 15, 30]` seconds (3 retries)
 - Do NOT retry on 4xx other than 429 — they're contract errors
+- **401 special-case**: evict the cached token, force a refresh, retry once. Cognito can revoke mid-run or the run can exceed `expires_in` despite the 60s buffer (clock drift, long-running pulls). Without this branch every call after revocation silently returns 401.
 
 ```python
 RETRY_CODES = {429, 500, 502, 503, 504}
 RETRY_BACKOFF = [5, 15, 30]
 
 async def get_with_retry(client, cache, url, params=None, timeout=30):
+    refreshed_once = False
     for attempt in range(len(RETRY_BACKOFF) + 1):
         token = await cache.get(client)
         try:
             r = await client.get(url, params=params,
                                  headers={"Authorization": f"Bearer {token}"},
                                  timeout=timeout)
+            # 401: token revoked or expired beyond the 60s buffer.
+            # Evict and retry exactly once — avoid infinite refresh loops
+            # on a genuinely bad client_id/secret.
+            if r.status_code == 401 and not refreshed_once:
+                cache.expires_at = 0          # force refresh on next get()
+                refreshed_once = True
+                continue
             if r.status_code in RETRY_CODES and attempt < len(RETRY_BACKOFF):
                 await asyncio.sleep(RETRY_BACKOFF[attempt])
                 continue
@@ -135,7 +144,7 @@ async def get_with_retry(client, cache, url, params=None, timeout=30):
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| 401 on every call | Stale token cached beyond `expires_in` | Add the 60s expiry buffer shown above |
+| 401 on every call after a long run | Token revoked or expired beyond the 60s buffer, wrapper doesn't refresh | Add the 401 branch in `get_with_retry` shown above (evict cache, refresh once, retry) — the 60s buffer alone is insufficient for runs that exceed `expires_in` |
 | 403 on creation endpoints, 200 on reads | Client has read-only scope | Request write scope from Timeback team; not a code bug |
 | `invalid_client` from token endpoint | Whitespace in `TIMEBACK_CLIENT_SECRET` env var | Strip the env var; no leading/trailing spaces |
 | 429 storms during bulk pull | No semaphore, hundreds of parallel calls | Wrap calls in `asyncio.Semaphore(10)` — that's the observed safe ceiling |

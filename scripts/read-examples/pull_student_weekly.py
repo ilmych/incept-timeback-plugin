@@ -74,6 +74,7 @@ class TokenCache:
 
 # ── Retry wrapper ──────────────────────────────────────────────────────────
 async def get_with_retry(client, cache, url, params=None, timeout=30) -> dict:
+    refreshed_once = False
     for attempt in range(len(RETRY_BACKOFF) + 1):
         token = await cache.get(client)
         try:
@@ -83,6 +84,12 @@ async def get_with_retry(client, cache, url, params=None, timeout=30) -> dict:
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=timeout,
             )
+            # 401: token revoked or expired beyond the 60s buffer. Evict and
+            # retry exactly once — avoid infinite refresh loops on bad creds.
+            if r.status_code == 401 and not refreshed_once:
+                cache.expires_at = 0
+                refreshed_once = True
+                continue
             if r.status_code in RETRY_CODES and attempt < len(RETRY_BACKOFF):
                 await asyncio.sleep(RETRY_BACKOFF[attempt])
                 continue
