@@ -55,6 +55,7 @@ def sanitize_html_for_xhtml(html: str) -> str:
 ```
 
 Additional HTML rules:
+- **NEVER reference local filesystem paths in QTI content.** Every `<img src="...">`, `<source src="...">`, video/audio URL, or embedded asset MUST point to an `https://` URL (typically `https://ai-first-incept-media.s3.amazonaws.com/...`). If an image/asset exists only on disk (`/Users/...`, `/Volumes/...`, relative paths like `images/foo.png`), upload to S3 FIRST via `references/s3-uploads.md`, THEN embed the S3 URL. Local paths render as broken thumbnails or 404s in the student UI. This check applies to stimuli, items, feedback, rubric blocks — anywhere HTML is embedded.
 - **`<table>` inside `<p>` is the #1 rendering bug.** Split: `<p>text</p><table>...</table><p>more</p>`
 - Platform strips `<style>` blocks — ALL CSS must be inline on elements
 - Forbidden: `<center>`, `<font>`, nested `<p>`, `<p>` in modalFeedback
@@ -62,13 +63,31 @@ Additional HTML rules:
 - Markdown pipe tables must be converted to `<table>` before push
 - Always validate XML with `ET.fromstring()` before pushing
 
-## CRITICAL RULE 3: PUT is Full Replace
+## CRITICAL RULE 3: Updates Use PUT — POST Creates or 409s
+
+For existing items: use PUT, not POST. POSTing to `/assessment-items` with an ID that already exists returns `409 Conflict` and the update never lands — but a naive caller may log "200 OK or 409 for already-existing" as success and not realize the update silently failed.
 
 PUT replaces the ENTIRE item. Omit `stimulus` → link removed. Omit `metadata` → cleared.
 
-**Update pattern**: GET item → extract `rawXml` → modify specific section → PUT back complete XML with `{"format": "xml", "xml": modified_xml, "metadata": {...}}`
+**Update pattern (items)**: GET item → extract `rawXml` → modify specific section → PUT back complete XML with `{"format": "xml", "xml": modified_xml, "metadata": {...}}`
+
+**Update pattern (stimuli) — DIFFERENT SHAPE**: Stimulus PUT does **NOT** accept `{"format": "xml", "xml": ...}` — that shape is items-only and will return 500 (Mongo ObjectId lookup fails with `DocumentNotFoundError ... on model QTIStimulus`). Stimulus PUT expects:
+```python
+PUT /stimuli/{id}
+{
+    "identifier": "<same id>",
+    "title": "<title from GET>",
+    "content": "<full HTML body — inner of <qti-stimulus-body>, not full rawXml>",
+    "metadata": {...},  # preserve from GET
+}
+```
+The `content` field is HTML (XHTML-sanitized), not XML. If stimulus PUT returns 500 with "No document found for query... on model QTIStimulus", the fix is the HTML `content` shape above — NOT DELETE escalation. (Verified 2026-04-23 after a near-miss on a prod stimulus.)
 
 Never reconstruct XML from scratch — you'll lose rubrics, response processing, grader URLs, feedback blocks.
+
+**After any PUT, verify round-trip**: GET the item back and confirm the field you changed is reflected. HTTP 200 on PUT does NOT guarantee the change landed — the API can 200 while silently dropping fields or writing to a different layer than the one the renderer reads. If PUTs return 200 but content visibly didn't change, the escalation (not the default) is DELETE+POST — used in `ap-test-scrapper` after observing this failure mode in production.
+
+**DELETE+POST is FORBIDDEN on prod stimuli/items without explicit user confirmation.** DELETE opens a data-loss window: if the subsequent POST fails (409, 500, auth expiry, network blip), the entity is gone from prod and students see 404s. When PUT fails with 4xx/5xx on a prod entity: (1) first try the correct payload shape (HTML `content` for stimuli, not XML), (2) if still failing, STOP and surface the error to the user — do NOT auto-escalate to DELETE. The only exception: dev/test environments explicitly isolated from prod. "Escalation" in the skill means "user-approved last resort," not "automatic next step." (Added 2026-04-23 after Claude was about to DELETE a live stimulus.)
 
 ## Pre-Push Checklist
 
@@ -91,8 +110,10 @@ Before ANY push operation, verify:
 - [ ] PCI: S3 URL verified accessible?
 - [ ] PCI: `getResponse()` returns plain string, not nested object?
 - [ ] Stimuli linked with full API URL in href?
-- [ ] `lessonType` set in component-resource metadata? (WARNING: lessonType in resource metadata causes 500 as of 2026-04-02)
-- [ ] Parent components have `parent` field set? (`courseComponent` auto-fills from `parent`, but set both for safety)
+- [ ] `lessonType` set in BOTH resource metadata AND component-resource link metadata?
+- [ ] **For quiz/test resources: URL in `metadata.url` (not top-level)?** Top-level `url` field is silently dropped by the OneRoster API. `powerpath-100` resources don't need this — the platform constructs their URL from `vendorResourceId`. (verified 2026-04-12)
+- [ ] Parent components have BOTH `parent` AND `courseComponent` fields set? Both must point to the same parent id. Setting only one may work in the API but the admin panel may not render the hierarchy correctly.
+- [ ] **3-level hierarchy (unit > section > lesson)**: if components were originally created without a parent and later re-parented via PUT, the admin panel tree view may show stale grouping due to caching. The API data will be correct (verify via individual GET). Syllabus endpoint reflects correct structure immediately. Admin panel cache clears on hard-refresh or within minutes. (verified 2026-04-12)
 - [ ] Validated with `ET.fromstring()` before push?
 - [ ] No bare `&` or HTML entities in XML contexts?
 - [ ] Checkpoint file initialized for resume-on-failure?

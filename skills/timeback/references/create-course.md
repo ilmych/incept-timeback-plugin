@@ -67,7 +67,7 @@ Covers the full hierarchy: Course > Components (units/lessons) > Resources > Com
 - `sortOrder` accepts any integer including 0 and negative values. API does NOT enforce >= 1. However, use >= 1 in practice for predictable UI ordering.
 - `sortOrder` is optional — components can be created without it (but ordering becomes unpredictable).
 - Duplicate `sortOrder` values within the same parent are accepted (no uniqueness enforcement).
-- **Nesting depth**: API accepts 5+ levels of nesting (verified: unit > topic > subtopic > sub-sub > sub-sub-sub). However, UI rendering beyond 2 levels is untested — stick to 2 levels (unit > topic) for production.
+- **Nesting depth**: API accepts 5+ levels of nesting. **3 levels (unit > section > lesson) confirmed working in production** (verified SAT R&W 2026-04-12 — admin panel renders correctly, syllabus endpoint reflects hierarchy). Set BOTH `parent` and `courseComponent` fields on child components; omitting either can cause admin panel not to show the child under the right parent.
 - For top-level units: set both `parent` and `courseComponent` to `null` (not omitted).
 - `status` is REQUIRED for components (422 without it).
 - `course` reference is REQUIRED (422 without it).
@@ -87,24 +87,29 @@ Covers the full hierarchy: Course > Components (units/lessons) > Resources > Com
         "vendorResourceId": test_or_stimulus_id,
         "vendorId": "alpha-incept",
         "applicationId": "incept",
-        "url": f"{QTI_BASE}/assessment-tests/{test_id}",  # for QTI resources
+        # CRITICAL: top-level `url` field is silently dropped by the OneRoster API.
+        # The URL MUST be inside metadata.url to persist and display in admin panel.
         "metadata": {
-            "lessonType": lesson_type,  # must match component-resource metadata
+            "type": "qti",
+            "subType": "qti-test",
+            "lessonType": lesson_type,       # must match component-resource metadata
+            "url": f"{QTI_BASE}/assessment-tests/{test_id}",  # ← INSIDE metadata, not top-level
         }
     }
 }
 ```
 
-### Critical Rules (empirically verified 2026-04-02)
+### Critical Rules (empirically verified 2026-04-02, updated 2026-04-12)
 - Resources endpoint has **trailing slash**: `/ims/oneroster/resources/v1p2/resources/` — without trailing slash returns 422
-- **WARNING (2026-04-02)**: Resources API returns HTTP 500 when `lessonType` is included in metadata. This appears to be a server-side bug. Resources without lessonType in metadata create successfully. Workaround: create resource without lessonType, or retry if the issue is intermittent.
-- `lessonType` should match in BOTH resource metadata AND component-resource metadata (when working).
+- **CRITICAL (2026-04-12): Top-level `url` field is silently dropped.** The OneRoster resource API accepts the `url` field in the POST/PUT body but does NOT persist it. The URL must be set inside `metadata.url` to survive. This affects quiz/test resources — the admin panel reads `metadata.url` to display the playable link. `powerpath-100` resources don't need a URL (platform constructs it from `vendorResourceId` internally).
+- `lessonType` should be in resource metadata. Component-resource link metadata should also have `lessonType` (both are needed).
 - Valid lessonTypes: `quiz`, `exercise`, `article`, `alpha-read-article`, `powerpath-100`, `unit-test`
-- `vendorId`: `"alpha-incept"`, `applicationId`: `"incept"`
+- `vendorId` and `applicationId`: set to null/omit for alpha-read-article resources (the working grades 3-8 resources have these as null despite earlier docs suggesting "alpha-incept"/"incept")
+- `vendorResourceId`: for alpha-read-article, this is the NUMBER ONLY (e.g., `"3000001"` not `"article_3000001"`). The app prepends the type prefix when constructing URLs.
 - Required fields: `sourcedId`, `status`, plus at least `vendorResourceId`+`vendorId`+`applicationId` (minimal with just sourcedId+status returns 422)
 - `status` is NOT required for resources (works without it)
 - `importance` valid values: `"primary"`, `"secondary"` (others return 422)
-- `metadata`, `url`, `importance` are optional
+- `metadata`, `importance` are optional; `url` at top-level is silently ignored
 - DELETE returns 404 for resources (not 204 like courses/components) — may need GET verification
 
 ## Component-Resource Link

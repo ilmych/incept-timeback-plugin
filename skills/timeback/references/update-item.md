@@ -63,6 +63,8 @@ ET.fromstring(modified_xml)  # catches malformed XML before it hits the API
 
 ## Alternative: DELETE + POST (More Reliable for Complex Changes)
 
+**Forbidden in prod**: DELETE on a live `/assessment-items/{id}` or `/stimuli/{id}` opens a window where the entity is gone before the replacement POST lands. If POST fails (409 race, 500, auth expiry), students see 404s. NEVER use DELETE+POST as an automatic escalation when PUT fails on prod — surface the error to the user instead. DELETE+POST is for dev/test environments explicitly isolated from prod, OR for prod only with explicit user confirmation. Cross-reference: SKILL.md CRITICAL RULE 3 (final paragraph).
+
 When modifying response processing, grader config, or interaction structure, DELETE + POST is safer than XML surgery:
 
 ```python
@@ -84,6 +86,8 @@ Use this when: changing item type, restructuring interactions, swapping grader U
 
 ## Updating Stimuli
 
+Stimulus PUT uses a DIFFERENT shape than item PUT. Items use `{"format": "xml", "xml": ...}`. Stimuli use:
+
 ```
 PUT {QTI_BASE}/stimuli/{id}
 ```
@@ -92,9 +96,12 @@ PUT {QTI_BASE}/stimuli/{id}
 {
     "identifier": stimulus_id,
     "title": title,
-    "content": updated_html,  # must be valid XHTML
+    "content": updated_html,  # must be valid XHTML — inner of <qti-stimulus-body>, not full rawXml
+    "metadata": {...},          # preserve from GET
 }
 ```
+
+The `content` field is HTML (the inner of `<qti-stimulus-body>`, not the full rawXml). If you accidentally PUT a stimulus with `{"format": "xml", "xml": ...}`, the API returns **500** with `DocumentNotFoundError ... on model QTIStimulus` — the Mongo ObjectId lookup fails because the request didn't include the right fields. The fix is to use the HTML `content` shape above, NOT to escalate to DELETE+POST. (See SKILL.md CRITICAL RULE 3 for the prod-DELETE prohibition.)
 
 Same full-replace semantics. Omit `content` and it's cleared.
 
@@ -138,6 +145,22 @@ for item_id in item_ids:
     save_checkpoint(state)  # after EVERY item
 ```
 
+## CRITICAL: XML PUT Can Silently Fail to Update Rendered State
+
+The API has two internal representations: `rawXml` (the stored XML string) and a **typed object model** (parsed fields like `interaction.shuffle`, `interaction.choices[]`). When you PUT with `format: "xml"`, `rawXml` is updated but the **typed model may not be re-parsed**. The renderer reads some properties (notably `shuffle`) from the typed model, not from rawXml.
+
+**Consequence**: XML PUT returns 200, GET shows correct `rawXml` with `shuffle="true"`, but the student UI still shows fixed order because the typed `interaction.shuffle` field was never updated. This caused 12,000+ items to appear fixed after a "successful" batch update in April 2026.
+
+**Safe approach for simple property changes** (shuffle, maxChoices, etc.):
+- Use **JSON PUT** with the typed fields, not XML PUT
+- Or use **DELETE + POST** with the correct XML (POST forces full parsing)
+
+**XML PUT is safe for**: content changes (prompt text, feedback text, stimulus references) — anything in the XML body that the renderer reads directly from rawXml.
+
+**XML PUT is NOT reliable for**: interaction configuration properties (`shuffle`, `maxChoices`, `orientation`, choice ordering) that the typed model caches separately.
+
+**Always round-trip verify**: After any batch update, GET a sample of items and check BOTH `rawXml` AND the typed fields (e.g., `interaction.shuffle`) to confirm they match.
+
 ## Common Failures
 
 | Symptom | Cause | Fix |
@@ -149,6 +172,8 @@ for item_id in item_ids:
 | ~~409 Conflict~~ | ~~DELETE + immediate POST race~~ | No delay needed (verified 2026-04-02: immediate POST after DELETE succeeds) |
 | Wrong field name | Used `rawXml` in PUT (should be `xml`) | Use lowercase `xml` in PUT payload |
 | Lost feedback blocks | Reconstructed XML from scratch | Always edit existing XML, never rebuild |
+| **Shuffle/config unchanged after PUT** | **XML PUT didn't update typed model** | **Use JSON PUT or DELETE+POST for interaction config changes** |
+| **Answer positions shifted to A-bias** | **XML PUT triggered internal normalization** | **Verify answer distribution after batch updates, not just success count** |
 
 ## Field Name Reference
 

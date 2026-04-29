@@ -1,6 +1,6 @@
 {
   "name": "timeback",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Timeback/QTI platform reference — prevents XML, rendering, and API integration bugs. Self-improving via nightly regression testing.",
   "author": {
     "name": "Ilma",

@@ -66,6 +66,11 @@ if resp.status_code == 404:
 - QTI viewer renders stimulus in a dedicated reading pane (split view)
 - Long articles: platform handles scrolling, no need for manual pagination
 
+### Images in Stimuli (verified 2026-04-04)
+- **Do NOT embed base64 images** — stimuli with base64 content grow to 50-150KB and cause 500 errors in the alpharead app
+- Upload images to S3 (`ai-first-incept-media` bucket) and reference via `<img src="https://..." alt="..."/>`
+- Self-close the img tag for XHTML compatibility: `<img src="..." alt="..."/>`
+
 ## Update (PUT)
 
 ```

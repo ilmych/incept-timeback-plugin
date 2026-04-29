@@ -36,6 +36,7 @@
 | Data lost after PUT update | PUT does full replace, fields omitted | GET first, modify only needed fields in response, PUT complete payload |
 | Boolean attr error in XML | `allowfullscreen` not XHTML compliant | Use `allowfullscreen="allowfullscreen"` |
 | Bare `&` causes parse error | Not escaped in XML context | Use `&amp;` everywhere in XML/XHTML |
+| Literal `&nbsp;` / `&emsp;` text rendered to users | XML sanitizer only escaped bare `&`, didn't pre-convert named entities | In any `sanitize_html_for_xml` function, convert ALL named HTML entities to numeric form BEFORE the bare-`&` escape. Use `html.entities.name2codepoint` as the whitelist; only exclude the 5 XML-predefined names (`amp`, `lt`, `gt`, `quot`, `apos`). A partial fix like `html.replace("&nbsp;", "&#160;")` is a red flag — HTML has ~250 named entities. Canonical pattern: `_NAMED_ENTITY_RE = re.compile(r"&([a-zA-Z]+);")` then `.sub(lambda m: f"&#{name2codepoint[m.group(1)]};" if m.group(1) not in _XML_PREDEFINED and m.group(1) in name2codepoint else m.group(0), html)`, THEN the bare-`&` → `&amp;` regex. |
 
 ## Structural Issues
 
