@@ -29,6 +29,7 @@ Covers:
 - Math/formula notation
 - S3 uploads
 - Push pipeline ordering
+- **Admin dashboard read API** at `alpha.timeback.com` — student activity, goals, mastery, placements, roster (complementary to the QTI authoring side; useful for round-trip verification of pushed content). See [`skills/timeback/references/admin-dashboard-read-api.md`](skills/timeback/references/admin-dashboard-read-api.md).
 
 ### Agent: `skill-tester`
 Autonomous agent that:

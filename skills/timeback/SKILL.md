@@ -1,13 +1,20 @@
 ---
 name: timeback
 description: >
-  Timeback/QTI platform reference for creating, updating, and publishing educational content.
+  Timeback/QTI platform reference for creating, updating, and publishing educational content,
+  AND for reading student/teacher/class/activity/goal data from the admin dashboard at
+  alpha.timeback.com.
   MUST invoke when: (1) writing code that calls Timeback API endpoints (/assessment-items,
   /assessment-tests, /stimuli, /courses, /components, /resources), (2) generating QTI XML,
   (3) writing HTML that will be embedded in QTI items or stimuli, (4) uploading content to S3
   for Timeback, (5) building course push pipelines, (6) creating PCI interactive items,
   (7) debugging rendering failures in Timeback student UI, (8) working with MathML or chemical
-  formulas in QTI. Covers all gotchas discovered across 3 AP course builds and 60+ fix scripts.
+  formulas in QTI, (9) reading student/teacher/class/activity/goal data from the admin
+  dashboard at alpha.timeback.com (`_serverFn` endpoints, Clerk session auth — see
+  references/admin-dashboard-read-api.md), (10) verifying pushed QTI content via
+  fetchCourseSyllabus / getCourseComponents / getLessonDetails round-trips.
+  Covers all gotchas discovered across 3 AP course builds, 60+ fix scripts, and a full
+  network sweep of the production admin dashboard.
 ---
 
 # Timeback Platform Reference
@@ -116,12 +123,14 @@ Load the appropriate reference when performing a specific operation:
 | Math/Formulas | [references/math-and-formulas.md](references/math-and-formulas.md) | MathML, chemical formulas, Unicode subscripts |
 | Interaction Types | [references/interaction-types.md](references/interaction-types.md) | Checking what QTI types work on Timeback |
 | Error Diagnosis | [references/common-errors.md](references/common-errors.md) | Debugging rendering or push failures |
+| Admin Dashboard Read API | [references/admin-dashboard-read-api.md](references/admin-dashboard-read-api.md) | Reading student/teacher/class/activity/goals/mastery from `alpha.timeback.com` (complementary to QTI authoring; useful for round-trip verification of pushed content) |
 
 ## API Quick Reference
 
 **Base URLs**:
 - QTI API: `https://qti.alpha-1edtech.ai/api`
 - OneRoster API: `https://api.alpha-1edtech.ai`
+- Admin Dashboard (read): `https://alpha.timeback.com` (Clerk session auth — see [admin-dashboard-read-api.md](references/admin-dashboard-read-api.md))
 
 **Auth**: OAuth 2.0 client_credentials via AWS Cognito. Token expires 3600s. Env vars: `TIMEBACK_CLIENT_ID`, `TIMEBACK_CLIENT_SECRET`.
 
