@@ -1,20 +1,26 @@
 {
-  "hooks": [
-    {
-      "type": "UserPromptSubmit",
-      "matcher": "",
-      "hook": {
-        "type": "prompt",
-        "prompt": "Scan the user's message for ANY of these patterns (case-insensitive): 'timeback', 'qti', 'oneroster', 'assessment-item', 'assessment-test', 'stimuli', 'stimulus', 'course component', 'courseComponent', 'component-resource', 'rawXml', 'alpha-1edtech', 'qti-assessment', 'match-interaction', 'hotspot', 'hottext', 'inline-choice', 'gap-match', 'graphic-gap', 'select-point', 'PCI', 'portable custom interaction', 'push to CMS', 'push to platform', 'push items', 'push course', 'create items', 'create course', 'lessonType', 'vendorResourceId'. Also check if the current working directory or recent file context contains files referencing these APIs. If ANY match is found, respond with EXACTLY: 'IMPORTANT: This task involves the Timeback/QTI platform. You MUST invoke the timeback skill before writing ANY code: run Skill(timeback). The skill contains critical API gotchas (XML vs JSON format rules, XHTML sanitization, field naming mismatches) that prevent silent rendering failures and data loss. Do NOT skip this step.' If no patterns match, respond with nothing."
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.prompt // empty' | grep -qiE 'timeback|qti|oneroster|assessment-(item|test)|stimul(us|i)|course ?component|component-resource|rawxml|alpha-1edtech|match-interaction|hotspot|hottext|inline-choice|gap-match|graphic-gap|select-point|[[:<:]]pci[[:>:]]|portable custom interaction|push (to (cms|platform)|items|course)|create (items|course)|lessontype|vendorresourceid' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"IMPORTANT: This task involves the Timeback/QTI platform. You MUST invoke the timeback skill before writing ANY code: run Skill(timeback). The skill contains critical API gotchas (XML vs JSON format rules, XHTML sanitization, field naming mismatches) that prevent silent rendering failures and data loss. Do NOT skip this step.\"}}' || true"
+          }
+        ]
       }
-    },
-    {
-      "type": "PreToolUse",
-      "matcher": "Write|Edit",
-      "hook": {
-        "type": "prompt",
-        "prompt": "Check if the tool input (file content or edit) contains any of: 'assessment-items', 'assessment-tests', '/stimuli', 'oneroster', 'qti.alpha-1edtech', 'api.alpha-1edtech', 'QTI_BASE', 'ONEROSTER_BASE', 'rawXml', 'qti-assessment-item', 'courseComponent', 'componentResource', 'format.*xml', 'imsqtiasi'. If ANY pattern is found and the timeback skill has NOT been loaded yet in this conversation, respond with: 'BLOCKED: You are writing Timeback API code without loading the timeback skill. Run Skill(timeback) first. This is mandatory — the API has silent data-loss gotchas that are only documented in the skill.' If the skill IS already loaded or no patterns match, respond with nothing."
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '[.tool_input.content // \"\", .tool_input.new_string // \"\"] | join(\" \")' | grep -qiE 'assessment-(items|tests)|/stimuli|oneroster|qti\\.alpha-1edtech|api\\.alpha-1edtech|QTI_BASE|ONEROSTER_BASE|rawxml|qti-assessment-item|coursecomponent|componentresource|imsqtiasi' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"Reminder: this file touches Timeback/QTI APIs. If the timeback skill is not loaded in this conversation yet, run Skill(timeback) before continuing — it documents silent data-loss gotchas (XML vs JSON rules, XHTML sanitization, field naming mismatches).\"}}' || true"
+          }
+        ]
       }
-    }
-  ]
+    ]
+  }
 }
