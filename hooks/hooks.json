@@ -2,11 +2,11 @@
   "hooks": {
     "UserPromptSubmit": [
       {
-        "matcher": "",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.prompt // empty' | grep -qiE 'timeback|qti|oneroster|assessment-(item|test)|stimul(us|i)|course ?component|component-resource|rawxml|alpha-1edtech|match-interaction|hotspot|hottext|inline-choice|gap-match|graphic-gap|select-point|[[:<:]]pci[[:>:]]|portable custom interaction|push (to (cms|platform)|items|course)|create (items|course)|lessontype|vendorresourceid' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"IMPORTANT: This task involves the Timeback/QTI platform. You MUST invoke the timeback skill before writing ANY code: run Skill(timeback). The skill contains critical API gotchas (XML vs JSON format rules, XHTML sanitization, field naming mismatches) that prevent silent rendering failures and data loss. Do NOT skip this step.\"}}' || true"
+            "command": "jq -r '[.prompt // \"\", .user_prompt // \"\"] | join(\" \")' | grep -qiE 'timeback|qti|oneroster|assessment-(item|test)|stimul(us|i)|course ?component|component-resource|rawxml|alpha-1edtech|match-interaction|hotspot|hottext|inline-choice|gap-match|graphic-gap|select-point|[[:<:]]pci[[:>:]]|portable custom interaction|push (to (cms|platform)|items|course)|create (items|course)|lessontype|vendorresourceid' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"IMPORTANT: This task involves the Timeback/QTI platform. You MUST invoke the timeback skill before writing ANY code: run Skill(timeback). The skill contains critical API gotchas (XML vs JSON format rules, XHTML sanitization, field naming mismatches) that prevent silent rendering failures and data loss. Do NOT skip this step.\"}}' || true"
           }
         ]
       }
