@@ -14,6 +14,16 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
+# QTI XML reaching this validator is partly LLM-generated and partly fetched
+# from Timeback — i.e. NOT fully trusted. Stdlib ``ET.fromstring`` resolves XML
+# entities and is vulnerable to XXE and "billion laughs" entity-expansion DoS.
+# Prefer ``defusedxml`` for parsing; fall back to stdlib guarded by a DOCTYPE
+# reject (the vector for both attacks) so this stays safe even without the dep.
+try:
+    from defusedxml.ElementTree import fromstring as _safe_fromstring
+except ImportError:  # defusedxml not installed — the DOCTYPE guard still applies
+    _safe_fromstring = ET.fromstring
+
 
 def sanitize_html_for_xhtml(html: str) -> str:
     """Sanitize HTML to be valid XHTML for the Timeback stimulus/item API.
@@ -108,11 +118,18 @@ def html_entities_to_unicode(html: str) -> str:
 
 
 def validate_xml(xml_str: str) -> tuple[bool, str]:
-    """Validate that a string is well-formed XML. Returns (valid, error_message)."""
+    """Validate that a string is well-formed XML. Returns (valid, error_message).
+
+    Rejects any DOCTYPE/DTD outright: legitimate QTI never declares one, and it
+    is the entry point for XXE and billion-laughs entity-expansion attacks. The
+    parse itself goes through defusedxml when available (belt and suspenders).
+    """
+    if re.search(r"<!DOCTYPE", xml_str, re.IGNORECASE):
+        return False, "DOCTYPE/DTD is not permitted (XXE / entity-expansion risk)"
     try:
-        ET.fromstring(xml_str)
+        _safe_fromstring(xml_str)
         return True, ""
-    except ET.ParseError as e:
+    except (ET.ParseError, ValueError) as e:
         return False, str(e)
 
 
