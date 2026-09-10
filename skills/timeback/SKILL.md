@@ -1,13 +1,20 @@
 ---
 name: timeback
 description: >
-  Timeback/QTI platform reference for creating, updating, and publishing educational content.
+  Timeback/QTI platform reference for creating, updating, and publishing educational content,
+  AND for reading student/teacher/class/activity/goal data from the admin dashboard at
+  alpha.timeback.com.
   MUST invoke when: (1) writing code that calls Timeback API endpoints (/assessment-items,
   /assessment-tests, /stimuli, /courses, /components, /resources), (2) generating QTI XML,
   (3) writing HTML that will be embedded in QTI items or stimuli, (4) uploading content to S3
   for Timeback, (5) building course push pipelines, (6) creating PCI interactive items,
   (7) debugging rendering failures in Timeback student UI, (8) working with MathML or chemical
-  formulas in QTI. Covers all gotchas discovered across 3 AP course builds and 60+ fix scripts.
+  formulas in QTI, (9) reading student/teacher/class/activity/goal data from the admin
+  dashboard at alpha.timeback.com (`_serverFn` endpoints, Clerk session auth — see
+  references/admin-dashboard-read-api.md), (10) verifying pushed QTI content via
+  fetchCourseSyllabus / getCourseComponents / getLessonDetails round-trips.
+  Covers all gotchas discovered across 3 AP course builds, 60+ fix scripts, and a full
+  network sweep of the production admin dashboard.
 ---
 
 # Timeback Platform Reference
@@ -137,25 +144,29 @@ Load the appropriate reference when performing a specific operation:
 | Math/Formulas | [references/math-and-formulas.md](references/math-and-formulas.md) | MathML, chemical formulas, Unicode subscripts |
 | Interaction Types | [references/interaction-types.md](references/interaction-types.md) | Checking what QTI types work on Timeback |
 | Error Diagnosis | [references/common-errors.md](references/common-errors.md) | Debugging rendering or push failures |
-| Auth (Cognito OAuth2) | [references/auth-cognito.md](references/auth-cognito.md) | Token exchange, caching, retry/backoff for ANY read-side call |
+| Auth (Cognito OAuth2) | [references/auth-cognito.md](references/auth-cognito.md) | Token exchange, caching, retry/backoff for QTI + OneRoster + EduBridge + PowerPath (not the admin dashboard) |
 | Read OneRoster | [references/read-oneroster.md](references/read-oneroster.md) | Pulling academic sessions, enrollments, assessmentResults, lineItems |
 | Read EduBridge | [references/read-edubridge.md](references/read-edubridge.md) | Pulling weekly facts, daily activity, highestGradeMastered |
 | Read PowerPath | [references/read-powerpath.md](references/read-powerpath.md) | Pulling placement, per-course subject progress |
 | Read QTI | [references/read-qti.md](references/read-qti.md) | Extracting test metadata + questions (prompt/choices/answers/standards) |
+| Admin Dashboard Read API | [references/admin-dashboard-read-api.md](references/admin-dashboard-read-api.md) | Reading student/teacher/class/activity/goals/mastery from `alpha.timeback.com` (Clerk session; complementary to QTI authoring and Cognito read APIs) |
 
 See also `scripts/read-examples/pull_student_weekly.py` for a working end-to-end read pattern combining all four read-side APIs.
 
 ## API Quick Reference
 
-**Base URLs**:
-- QTI API: `https://qti.alpha-1edtech.ai/api`
-- OneRoster API: `https://api.alpha-1edtech.ai`
+**Base URLs** (auth differs by API family — do not mix tokens):
 
-**Auth**: OAuth 2.0 client_credentials via AWS Cognito. Token expires 3600s. Env vars: `TIMEBACK_CLIENT_ID`, `TIMEBACK_CLIENT_SECRET`.
+- **QTI authoring API**: `https://qti.alpha-1edtech.ai/api`
+  Auth: OAuth 2.0 `client_credentials` via AWS Cognito. Bearer token expires 3600s. Env vars: `TIMEBACK_CLIENT_ID`, `TIMEBACK_CLIENT_SECRET`. See [auth-cognito.md](references/auth-cognito.md).
+- **OneRoster / EduBridge / PowerPath**: `https://api.alpha-1edtech.ai`
+  Auth: **same Cognito bearer token** as QTI. See [auth-cognito.md](references/auth-cognito.md).
+- **Admin Dashboard (read)**: `https://alpha.timeback.com`
+  Auth: **Clerk session cookie** (HttpOnly). Cognito bearer tokens are rejected. See [admin-dashboard-read-api.md](references/admin-dashboard-read-api.md).
 
-**Token URL**: `https://prod-beyond-timeback-api-2-idp.auth.us-east-1.amazoncognito.com/oauth2/token`
+**Cognito token URL** (QTI + OneRoster family only — not `alpha.timeback.com`): `https://prod-beyond-timeback-api-2-idp.auth.us-east-1.amazoncognito.com/oauth2/token`
 
-**Auth pattern** (credentials go in POST body, NOT HTTP Basic Auth):
+**Cognito auth pattern** (credentials go in POST body, NOT HTTP Basic Auth; does **not** apply to dashboard `_serverFn` calls):
 ```python
 resp = requests.post(TOKEN_URL, data={
     "grant_type": "client_credentials",
