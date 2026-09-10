@@ -29,6 +29,7 @@ Covers:
 - Math/formula notation
 - S3 uploads
 - Push pipeline ordering
+- **Admin dashboard read API** at `alpha.timeback.com` — student activity, goals, mastery, placements, roster (Clerk session auth; complementary to the QTI authoring and Cognito read APIs). See [`skills/timeback/references/admin-dashboard-read-api.md`](skills/timeback/references/admin-dashboard-read-api.md).
 
 ### Agent: `skill-tester`
 Autonomous agent that:
@@ -77,7 +78,7 @@ timeback-plugin/
 ├── .claude-plugin/plugin.json    # Plugin manifest
 ├── skills/timeback/
 │   ├── SKILL.md                  # Main skill (auto-loads on /timeback)
-│   ├── references/               # 13 detailed reference files
+│   ├── references/               # 19 detailed reference files
 │   └── scripts/sanitize_html.py  # XHTML sanitizer utility
 ├── agents/skill-tester.md        # Nightly regression agent
 ├── hooks/hooks.json              # API code detection hook

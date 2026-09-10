@@ -1,6 +1,6 @@
 # Cognito OAuth2 Authentication (for Read APIs)
 
-**Scope:** all read-side endpoints — OneRoster, EduBridge, PowerPath, QTI (verified 2026-04-23 across 40+ student pulls).
+**Scope:** Cognito `client_credentials` bearer tokens for OneRoster, EduBridge, PowerPath, and QTI (verified 2026-04-23 across 40+ student pulls). Does **not** apply to the admin dashboard at `alpha.timeback.com` — that family uses Clerk session auth (see `admin-dashboard-read-api.md`).
 
 The QTI creation endpoints use the same token. The creation skills don't document this explicitly, so first-time integrators often re-implement auth wrong.
 
