@@ -112,7 +112,7 @@ Before ANY push operation, verify:
   - `<qti-extended-text-interaction>` with **`expected-lines`** and **`required="true"`** attributes
   - **Self-closing `<qti-custom-operator class="...ExternalApiScore" definition="..." />`** (no `<qti-variable>` child — the grader implicitly reads `RESPONSE`) inside a 5-step `<qti-response-processing>` pipeline with a single lowercase/uppercase FEEDBACK fallback condition (NO defensive null-RESPONSE branch)
   - `<qti-feedback-block outcome-identifier="FEEDBACK_VISIBILITY" identifier="VISIBLE">` containing `<qti-printed-variable identifier="GENERATED_FEEDBACK">` (without this, grader output never reaches the student)
-- [ ] **FRQ grader URL came from the user (never invented), uses the post-2026-04-08 path `https://coreapi.inceptstore.com/cs-autograder/score` (NO `/api/` prefix), survived XML POST allowlist validation, and contains no `https://https://` double-protocol typo?**
+- [ ] **FRQ grader URL was resolved for the target `course_id` from the ap-one registry (`services/bff/data/feedback_courses.json`) as `{grader_base_url}/{grader_subject}/grade` (never invented or taken from a code default), both fields were present, it survived XML POST allowlist validation, and it contains no duplicate path slash or double-protocol typo?**
 - [ ] PCI: typeIdentifier matches across XML + JS + module ID + S3 filename?
 - [ ] PCI: S3 URL verified accessible?
 - [ ] PCI: `getResponse()` returns plain string, not nested object?
