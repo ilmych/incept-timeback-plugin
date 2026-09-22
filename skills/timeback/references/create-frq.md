@@ -260,25 +260,26 @@ Rules:
 - A `[Part A]` / `[Part B]` prefix in each block is the convention used by the gold-standard item to encode part-grouping in plain text (since there's no per-block part attribute).
 - `metadata.rubric` is NOT a substitute. Storing rubric markup there leaves it invisible to the grader. Use it only as a redundant backup.
 
-### Grader URL Rules — CRITICAL (verified 2026-04-08)
+### Grader URL Rules — CRITICAL (verified 2026-09-22)
 
-- **NEVER invent or guess a grader URL.** ALWAYS get it from the user before creating any FRQ with auto-grading. The URL is course-specific and must be supplied at task time.
+- **NEVER invent, guess, or use a code-default grader URL.** Resolve the target `course_id` in the ap-one registry at `services/bff/data/feedback_courses.json`, then construct `{grader_base_url}/{grader_subject}/grade` from that row. The registry is the source of truth for the course's sanctioned lane.
+- **STOP if the course is absent or either registry field is empty.** Do not substitute another course's lane or a legacy shared endpoint; add/correct the ap-one registry entry first.
 - **Watch for double-protocol typos.** Earlier items pasted with `https://https://coreapi.inceptstore.com/...` — a copy-paste artifact. Always grep the XML for `https://https://` and `http://http://` before POST/PUT.
 - The XML POST/PUT endpoint validates `definition` against an internal **allowlist** (`validateCustomOperatorUrls` in the QTI XML processor). URLs not on the allowlist return:
   ```
   500 Internal Server Error
   Custom operator "com.alpha-1edtech.ExternalApiScore" definition URL hostname is not in the approved grader allowlist: "<hostname>"
   ```
-- If the user's grader URL fails the allowlist check, **STOP** and ask the user to coordinate with the platform team to add it. Do NOT fall back to JSON POST as a workaround — that's the trap below.
+- If the registry-derived grader URL fails the allowlist check, **STOP** and coordinate with the platform team to add it. Do NOT substitute a different URL or fall back to JSON POST as a workaround — that's the trap below.
 - The URL must start with `http://` or `https://` (exactly once).
 
-#### Known allowlist status (verified 2026-04-08)
+#### Grader URL source of truth (verified 2026-09-22)
 
-| Hostname + path | Allowlist status | Notes |
+| Source | Status | Rule |
 |---|---|---|
-| `https://coreapi.inceptstore.com/cs-autograder/score` | ✓ ALLOWED & WORKING | Current canonical grader URL. Confirmed via XML POST 201 + live grading. Used by `qti-item-4d365abb-7916-41a9-85d4-08ed7d3dd718`. **Note: NO `/api/` prefix.** |
-| `https://coreapi.inceptstore.com/api/cs-autograder/score` | ✗ SUPERSEDED | The hostname is on the allowlist but the `/api/` prefix returns 404 from the grader after the 2026-04-08 routing change. Earlier versions of this skill recommended this path — DO NOT use it. |
-| `https://cs-autograder.onrender.com/...` | ✗ REJECTED | 500 from allowlist validator. Was on `s4-u1-frq-01` for a while via the JSON POST trap (which bypasses validation but doesn't propagate to rawXml — the item never actually graded). |
+| ap-one `services/bff/data/feedback_courses.json` row matching the target `course_id` | ✓ REQUIRED | Join `grader_base_url` (without a trailing slash) and `grader_subject` as `{grader_base_url}/{grader_subject}/grade`, then validate the exact URL through XML POST. |
+| Any hard-coded shared grader URL or application code default | ✗ FORBIDDEN | These can be stale or unsafe and do not select the course's sanctioned deployment lane. Never copy one into published content. |
+| A different course's registry row | ✗ FORBIDDEN | Grader lanes are course-specific. Missing registry data is a registry defect, not permission to guess. |
 
 ### JSON POST trap — DO NOT use JSON POST for graded FRQs
 
@@ -356,9 +357,9 @@ assert 'required="true"' in raw
 assert raw.count("<qti-response-condition") == 1
 ```
 
-### The Only Path That Works (verified 2026-04-08)
+### The Only Path That Works (grader resolution verified 2026-09-22)
 
-1. Get the grader URL from the user (and grep for `https://https://` typos and stray `/api/` prefixes)
+1. Match the target `course_id` in ap-one `services/bff/data/feedback_courses.json`; require non-empty `grader_base_url` and `grader_subject`, construct `{grader_base_url}/{grader_subject}/grade`, and grep for double-protocol or duplicate path-slash typos
 2. Build the full canonical QTI XML using the template above:
    - 5 outcome decls + RESPONSE response-decl: `API_RESPONSE` (record), `FEEDBACK_VISIBILITY` (identifier), `GENERATED_FEEDBACK` (string), `SCORE` (float, with BOTH `normal-minimum="0"` and `normal-maximum="1.0"`), and the vestigial `FEEDBACK` (string, empty default)
    - One `<qti-rubric-block>` per criterion at the top of `<qti-item-body>`
@@ -402,7 +403,7 @@ For showing FRQs without student interaction (review mode):
 | Grader returns score but student sees nothing | Missing `<qti-feedback-block>` + `<qti-printed-variable>` for `GENERATED_FEEDBACK` | Add the canonical feedback-block — `GENERATED_FEEDBACK` outcome alone is not enough |
 | Grader timeout | Rubric too complex / grader overloaded | Simplify rubric, check grader health |
 | Student sees raw HTML | Prompt XHTML invalid | Sanitize prompt HTML |
-| Grader returns 404 (route not found) for `coreapi.inceptstore.com` | Old `/api/cs-autograder/score` path used. After 2026-04-08 the prefix moved — the working path is `/cs-autograder/score` (no `/api/`) | Use `https://coreapi.inceptstore.com/cs-autograder/score` exactly |
+| Grader returns 404 (route not found) | The item may carry a stale or guessed path | Re-resolve the exact course row from ap-one `services/bff/data/feedback_courses.json`, reconstruct `{grader_base_url}/{grader_subject}/grade`, and verify the route before publishing |
 | No feedback after submit | Missing `FEEDBACK_VISIBILITY` outcome OR pipeline never sets it to `VISIBLE` | Use the canonical 5-step response-processing pipeline; ensure `FEEDBACK_VISIBILITY` is `base-type="identifier"` not `boolean` |
 | 500 "URL hostname is not in the approved grader allowlist" but URL looks fine | Double-protocol typo (`https://https://`) — the validator parses the second `https` as the hostname | Grep for `https://https://` and `http://http://` before posting |
 | `API_RESPONSE` field extraction silently returns null | `API_RESPONSE` declared as `cardinality="single"` `base-type="string"` instead of `cardinality="record"` | Use `cardinality="record"` with a `<qti-default-value>` listing the field-identifiers; `<qti-field-value>` only works on records |
